@@ -10,6 +10,12 @@ const message = ref('Verbinding wordt opgezet...')
 
 onMounted(async () => {
   try {
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      throw new Error('Je bent niet ingelogd')
+    }
+
     // Get code from URL
     const params = new URLSearchParams(window.location.search)
     const code = params.get('code')
@@ -42,7 +48,8 @@ onMounted(async () => {
       },
       body: JSON.stringify({
         code,
-        user_email: 'dirk.bakker@gmx.net' // Hardcoded voor nu, geen RLS
+        user_email: user.email,
+        user_id: user.id
       })
     })
 
