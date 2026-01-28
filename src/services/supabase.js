@@ -35,9 +35,14 @@ export function onAuthStateChange(callback) {
 // ============================================================
 // Hue config functions
 export async function getHueConfig() {
+  // Get current user's email to filter config
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user?.email) return null
+
   const { data, error } = await supabase
     .from('hue_config')
     .select('*')
+    .eq('user_email', user.email)
     .single()
 
   if (error && error.code !== 'PGRST116') {
