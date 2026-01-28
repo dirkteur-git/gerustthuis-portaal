@@ -1,8 +1,11 @@
 <script setup>
-import { RouterView, RouterLink, useRoute } from 'vue-router'
-import { computed } from 'vue'
+import { RouterView, RouterLink, useRoute, useRouter } from 'vue-router'
+import { computed, ref, onMounted } from 'vue'
+import { supabase, signOut } from './services/supabase'
 
 const route = useRoute()
+const router = useRouter()
+const user = ref(null)
 
 const navItems = [
   { path: '/', name: 'Dashboard', icon: 'home' },
@@ -16,10 +19,35 @@ const isActive = (path) => {
   if (path === '/') return route.path === '/'
   return route.path.startsWith(path)
 }
+
+const isLoginPage = computed(() => route.path === '/login')
+
+const userInitials = computed(() => {
+  if (!user.value?.email) return 'GT'
+  return user.value.email.substring(0, 2).toUpperCase()
+})
+
+async function handleLogout() {
+  await signOut()
+  router.push('/login')
+}
+
+onMounted(async () => {
+  const { data: { session } } = await supabase.auth.getSession()
+  user.value = session?.user || null
+
+  supabase.auth.onAuthStateChange((event, session) => {
+    user.value = session?.user || null
+  })
+})
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50 flex">
+  <!-- Login page: no sidebar -->
+  <RouterView v-if="isLoginPage" />
+
+  <!-- App with sidebar -->
+  <div v-else class="min-h-screen bg-gray-50 flex">
     <!-- Sidebar -->
     <aside class="w-64 bg-white border-r border-gray-200 flex flex-col">
       <!-- Logo -->
@@ -61,15 +89,20 @@ const isActive = (path) => {
         </RouterLink>
       </nav>
 
-      <!-- User / Footer -->
+      <!-- User / Logout -->
       <div class="border-t border-gray-200 p-4">
         <div class="flex items-center gap-3">
           <div class="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center">
-            <span class="text-emerald-700 text-sm font-medium">GT</span>
+            <span class="text-emerald-700 text-sm font-medium">{{ userInitials }}</span>
           </div>
           <div class="flex-1 min-w-0">
-            <p class="text-sm font-medium text-gray-900 truncate">GerustThuis</p>
-            <p class="text-xs text-gray-500 truncate">Privacy-first monitoring</p>
+            <p class="text-sm font-medium text-gray-900 truncate">{{ user?.email || 'GerustThuis' }}</p>
+            <button
+              @click="handleLogout"
+              class="text-xs text-gray-500 hover:text-red-600 transition-colors"
+            >
+              Uitloggen
+            </button>
           </div>
         </div>
       </div>
