@@ -11,6 +11,7 @@ const heatmapData = ref([]) // { date, hours: [{ hour, count, roomCounts }] }
 const sensorHealth = ref({ active: 0, total: 0 })
 const selectedHour = ref(null) // { date, hour, roomCounts, x, y }
 const popupPosition = ref({ x: 0, y: 0 })
+const lastRefreshTime = ref(null)
 
 // Computed
 const patroonscore = computed(() => {
@@ -122,6 +123,16 @@ function formatDate(dateStr) {
   return `${days[d.getDay()]} ${d.getDate()}-${['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'][d.getMonth()]}`
 }
 
+const formattedLastRefresh = computed(() => {
+  if (!lastRefreshTime.value) return null
+  const d = new Date(lastRefreshTime.value)
+  const day = d.getDate()
+  const month = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'][d.getMonth()]
+  const hours = String(d.getHours()).padStart(2, '0')
+  const minutes = String(d.getMinutes()).padStart(2, '0')
+  return `${day} ${month}, ${hours}:${minutes}`
+})
+
 async function loadRooms() {
   const { data, error } = await supabase
     .from('hue_devices')
@@ -192,7 +203,7 @@ async function loadHeatmapData() {
 
   const { data, error } = await supabase
     .from('room_activity_hourly')
-    .select('room_name, hour, motion_events, door_events')
+    .select('room_name, hour, motion_events, door_events, updated_at')
     .gte('hour', sevenDaysAgo.toISOString())
 
   if (error) {
@@ -216,6 +227,18 @@ async function loadHeatmapData() {
     }
     dayMap.set(dateKey, { date: dateKey, hours })
   }
+
+  // Find the most recent updated_at timestamp
+  let latestUpdate = null
+  for (const row of data || []) {
+    if (row.updated_at) {
+      const updateTime = new Date(row.updated_at)
+      if (!latestUpdate || updateTime > latestUpdate) {
+        latestUpdate = updateTime
+      }
+    }
+  }
+  lastRefreshTime.value = latestUpdate
 
   // Aggregate events per day per hour, tracking room counts for filtering
   for (const row of data || []) {
@@ -263,12 +286,13 @@ onMounted(async () => {
         <h1 class="text-2xl font-bold text-gray-900">Dashboard</h1>
         <p class="text-gray-500">Kamer activiteit</p>
       </div>
-      <button class="text-gray-500 hover:text-gray-700 flex items-center gap-1">
+      <div class="text-gray-500 flex items-center gap-1.5 text-sm">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
-        Nu
-      </button>
+        <span v-if="formattedLastRefresh">{{ formattedLastRefresh }}</span>
+        <span v-else>-</span>
+      </div>
     </div>
 
     <!-- Score Cards -->
