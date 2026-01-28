@@ -43,9 +43,9 @@ export async function getHueConfig() {
     .from('hue_config')
     .select('*')
     .eq('user_email', user.email)
-    .single()
+    .maybeSingle()
 
-  if (error && error.code !== 'PGRST116') {
+  if (error) {
     console.error('Error fetching hue config:', error)
   }
   return data
