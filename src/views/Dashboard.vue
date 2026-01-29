@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { supabase } from '../services/supabase'
 
 // Data
@@ -151,17 +151,17 @@ async function loadRooms() {
 async function loadSensorHealth() {
   const ninetyMinutesAgo = new Date(Date.now() - 90 * 60 * 1000).toISOString()
 
-  // Get physical devices (motion sensors)
-  const { data: physicalDevices, error: physError } = await supabase
-    .from('physical_devices')
-    .select('id, battery_updated_at')
+  // Motion sensors - check last_state_at (niet battery_updated_at!)
+  const { data: motionSensors, error: motionError } = await supabase
+    .from('hue_devices')
+    .select('id, last_state_at')
+    .eq('device_type', 'motion_sensor')
 
-  if (physError) {
-    console.error('Error fetching physical devices:', physError)
-    return
+  if (motionError) {
+    console.error('Error fetching motion sensors:', motionError)
   }
 
-  // Get contact sensors (standalone)
+  // Contact sensors
   const { data: contactSensors, error: contactError } = await supabase
     .from('hue_devices')
     .select('id, last_state_at')
@@ -169,12 +169,11 @@ async function loadSensorHealth() {
 
   if (contactError) {
     console.error('Error fetching contact sensors:', contactError)
-    return
   }
 
-  // Count active sensors
-  const activePhysical = (physicalDevices || []).filter(
-    d => d.battery_updated_at && new Date(d.battery_updated_at) > new Date(ninetyMinutesAgo)
+  // Count active sensors (last_state_at within 90 minutes)
+  const activeMotion = (motionSensors || []).filter(
+    d => d.last_state_at && new Date(d.last_state_at) > new Date(ninetyMinutesAgo)
   ).length
 
   const activeContact = (contactSensors || []).filter(
@@ -182,8 +181,8 @@ async function loadSensorHealth() {
   ).length
 
   sensorHealth.value = {
-    active: activePhysical + activeContact,
-    total: (physicalDevices?.length || 0) + (contactSensors?.length || 0)
+    active: activeMotion + activeContact,
+    total: (motionSensors?.length || 0) + (contactSensors?.length || 0)
   }
 }
 
@@ -203,7 +202,7 @@ async function loadHeatmapData() {
 
   const { data, error } = await supabase
     .from('room_activity_hourly')
-    .select('room_name, hour, motion_events, door_events, updated_at')
+    .select('room_name, hour, total_events, updated_at')
     .gte('hour', sevenDaysAgo.toISOString())
 
   if (error) {
@@ -244,15 +243,14 @@ async function loadHeatmapData() {
   for (const row of data || []) {
     if (!row.room_name) continue
 
-    // Ensure UTC parsing - Supabase returns TIMESTAMPTZ but sometimes without 'Z'
-    const hourStr = row.hour
-    const eventDate = new Date(hourStr.endsWith('Z') || hourStr.includes('+') ? hourStr : hourStr + 'Z')
+    // View returns ISO format: "2026-01-29T05:00:00Z"
+    const eventDate = new Date(row.hour)
     const dateKey = toLocalDateKey(eventDate)
     const hourOfDay = eventDate.getHours()
 
     const day = dayMap.get(dateKey)
     if (day) {
-      const eventCount = (row.motion_events || 0) + (row.door_events || 0)
+      const eventCount = row.total_events || 0
       day.hours[hourOfDay].count += eventCount
       day.hours[hourOfDay].roomCounts[row.room_name] =
         (day.hours[hourOfDay].roomCounts[row.room_name] || 0) + eventCount
@@ -265,15 +263,30 @@ async function loadHeatmapData() {
   )
 }
 
+let refreshInterval = null
+
+async function refreshAllData() {
+  await Promise.all([
+    loadRooms(),
+    loadSensorHealth(),
+    loadHeatmapData()
+  ])
+}
+
 onMounted(async () => {
   try {
-    await Promise.all([
-      loadRooms(),
-      loadSensorHealth(),
-      loadHeatmapData()
-    ])
+    await refreshAllData()
+    // Auto-refresh elke 5 minuten
+    refreshInterval = setInterval(refreshAllData, 5 * 60 * 1000)
   } finally {
     loading.value = false
+  }
+})
+
+onUnmounted(() => {
+  if (refreshInterval) {
+    clearInterval(refreshInterval)
+    refreshInterval = null
   }
 })
 </script>
