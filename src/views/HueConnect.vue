@@ -57,7 +57,7 @@ function formatTime(timestamp) {
         <div class="flex items-center mb-4">
           <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
             <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 13l4 4L19 7" />
             </svg>
           </div>
           <div class="ml-4">
@@ -88,7 +88,7 @@ function formatTime(timestamp) {
         <div class="mt-6">
           <button
             @click="connectHue"
-            class="text-sm text-indigo-600 hover:text-indigo-500"
+            class="text-sm text-emerald-600 hover:text-emerald-500"
           >
             Opnieuw verbinden
           </button>
@@ -98,9 +98,9 @@ function formatTime(timestamp) {
       <!-- Not connected state -->
       <div v-else class="bg-white rounded-lg shadow p-6">
         <div class="text-center">
-          <div class="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg class="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+          <div class="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg class="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
             </svg>
           </div>
           <h2 class="text-lg font-medium mb-2">Verbind met Philips Hue</h2>
@@ -110,7 +110,7 @@ function formatTime(timestamp) {
 
           <button
             @click="connectHue"
-            class="bg-indigo-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-indigo-700 transition"
+            class="bg-emerald-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-emerald-700 transition"
           >
             Verbinden met Hue
           </button>

@@ -220,7 +220,7 @@ function connectHue() {
 
             <div class="text-gray-400">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5l7 7-7 7" />
               </svg>
             </div>
           </div>
@@ -249,7 +249,7 @@ function connectHue() {
           <div class="flex items-center gap-4 p-4 border border-dashed rounded-xl opacity-50">
             <div class="w-14 h-14 bg-gray-100 rounded-xl flex items-center justify-center shrink-0">
               <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
               </svg>
             </div>
             <div class="flex-1">

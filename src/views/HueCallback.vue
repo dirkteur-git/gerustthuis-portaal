@@ -80,7 +80,7 @@ onMounted(async () => {
     <div class="bg-white rounded-lg shadow p-8 max-w-md w-full text-center">
       <!-- Processing -->
       <template v-if="status === 'processing'">
-        <div class="w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+        <div class="w-16 h-16 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
         <h2 class="text-lg font-medium mb-2">Even geduld...</h2>
         <p class="text-gray-600">{{ message }}</p>
       </template>
@@ -89,7 +89,7 @@ onMounted(async () => {
       <template v-else-if="status === 'success'">
         <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
           <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 13l4 4L19 7" />
           </svg>
         </div>
         <h2 class="text-lg font-medium text-green-800 mb-2">Gelukt!</h2>
@@ -101,12 +101,12 @@ onMounted(async () => {
       <template v-else-if="status === 'error'">
         <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
           <svg class="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12" />
           </svg>
         </div>
         <h2 class="text-lg font-medium text-red-800 mb-2">Er ging iets mis</h2>
         <p class="text-gray-600 mb-4">{{ error }}</p>
-        <router-link to="/hue" class="text-indigo-600 hover:text-indigo-500">
+        <router-link to="/hue" class="text-emerald-600 hover:text-emerald-500">
           Probeer opnieuw →
         </router-link>
       </template>
