@@ -30,8 +30,8 @@ const statusInfo = computed(() => {
       color: 'gray',
       title: 'We leren nog',
       subtitle: daysCount > 0
-        ? `Nog ${MINIMUM_DAYS_REQUIRED - daysCount} dagen nodig voor een betrouwbaar beeld`
-        : 'Nog een paar dagen nodig voor een betrouwbaar beeld'
+        ? `${daysCount} dagen beschikbaar, minimaal ${MINIMUM_DAYS_REQUIRED} nodig`
+        : 'Nog geen data beschikbaar'
     }
   }
 
