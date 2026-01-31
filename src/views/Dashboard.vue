@@ -14,9 +14,12 @@ const popupPosition = ref({ x: 0, y: 0 })
 const lastRefreshTime = ref(null)
 
 // Computed
-const patroonscore = computed(() => {
-  // TODO: Implement pattern score calculation
-  return null
+const dagActiviteit = computed(() => {
+  // Bereken totaal momenten vandaag
+  const today = toLocalDateKey(new Date())
+  const todayData = heatmapData.value.find(d => d.date === today)
+  if (!todayData) return 0
+  return todayData.hours.reduce((sum, hour) => sum + hour.count, 0)
 })
 
 const sensorscore = computed(() => {
@@ -202,7 +205,7 @@ async function loadHeatmapData() {
 
   const { data, error } = await supabase
     .from('room_activity_hourly')
-    .select('room_name, hour, total_events, updated_at')
+    .select('room_name, hour, total_events, last_event')
     .gte('hour', sevenDaysAgo.toISOString())
 
   if (error) {
@@ -227,11 +230,11 @@ async function loadHeatmapData() {
     dayMap.set(dateKey, { date: dateKey, hours })
   }
 
-  // Find the most recent updated_at timestamp
+  // Find the most recent last_event timestamp
   let latestUpdate = null
   for (const row of data || []) {
-    if (row.updated_at) {
-      const updateTime = new Date(row.updated_at)
+    if (row.last_event) {
+      const updateTime = new Date(row.last_event)
       if (!latestUpdate || updateTime > latestUpdate) {
         latestUpdate = updateTime
       }
@@ -297,7 +300,7 @@ onUnmounted(() => {
     <div class="flex justify-between items-center">
       <div>
         <h1 class="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p class="text-gray-500">Kamer activiteit</p>
+        <p class="text-gray-500">Activiteitsoverzicht</p>
       </div>
       <div class="text-gray-500 flex items-center gap-1.5 text-sm">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -310,7 +313,7 @@ onUnmounted(() => {
 
     <!-- Score Cards -->
     <div class="grid grid-cols-2 gap-4">
-      <!-- Patroonscore -->
+      <!-- Dagactiviteit -->
       <div class="bg-white rounded-xl shadow-sm border p-4">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-3">
@@ -320,15 +323,15 @@ onUnmounted(() => {
               </svg>
             </div>
             <div>
-              <p class="text-sm text-gray-500">Patroonscore</p>
-              <p class="text-sm font-medium text-gray-900">{{ patroonscore !== null ? 'Normaal' : '-' }}</p>
+              <p class="text-sm text-gray-500">Dagactiviteit</p>
+              <p class="text-sm font-medium text-gray-900">Vandaag</p>
             </div>
           </div>
           <div class="text-right">
-            <p class="text-2xl font-bold" :class="patroonscore !== null ? 'text-blue-600' : 'text-gray-300'">
-              {{ patroonscore !== null ? patroonscore : '-' }}
+            <p class="text-2xl font-bold" :class="dagActiviteit > 0 ? 'text-blue-600' : 'text-gray-300'">
+              {{ dagActiviteit }}
             </p>
-            <p class="text-xs text-gray-400">/ 100</p>
+            <p class="text-xs text-gray-400">momenten</p>
           </div>
         </div>
       </div>
@@ -441,13 +444,13 @@ onUnmounted(() => {
 
           <!-- Legend -->
           <div class="flex justify-end items-center gap-2 mt-3 text-xs text-gray-500">
-            <span>Minder</span>
+            <span>Rustig</span>
             <div class="w-3 h-3 rounded-sm bg-gray-100"></div>
             <div class="w-3 h-3 rounded-sm bg-emerald-100"></div>
             <div class="w-3 h-3 rounded-sm bg-emerald-300"></div>
             <div class="w-3 h-3 rounded-sm bg-emerald-500"></div>
             <div class="w-3 h-3 rounded-sm bg-emerald-700"></div>
-            <span>Meer</span>
+            <span>Actief</span>
           </div>
         </div>
       </div>
@@ -491,7 +494,7 @@ onUnmounted(() => {
           </div>
           <div>
             <p class="text-lg font-bold text-emerald-700">{{ totalSelectedCount }}</p>
-            <p class="text-xs text-emerald-600 -mt-0.5">bewegingen</p>
+            <p class="text-xs text-emerald-600 -mt-0.5">momenten</p>
           </div>
         </div>
 

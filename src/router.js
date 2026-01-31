@@ -49,6 +49,12 @@ const routes = [
     name: 'HueCallback',
     component: () => import('./views/HueCallback.vue'),
     meta: { requiresAuth: true }
+  },
+  {
+    path: '/debug/hue',
+    name: 'HueDebug',
+    component: () => import('./views/HueDebug.vue'),
+    meta: { requiresAuth: true }
   }
 ]
 
