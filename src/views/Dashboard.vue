@@ -348,15 +348,15 @@ async function loadTodayStats() {
 }
 
 async function loadAverageStats() {
-  // Bereken gemiddelden van laatste 7 dagen (excl vandaag)
+  // Bereken gemiddelden van laatste 14 dagen (excl vandaag) - consistent met Patronen
   const today = new Date()
-  const sevenDaysAgo = new Date(today)
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+  const fourteenDaysAgo = new Date(today)
+  fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14)
 
   const { data, error } = await supabase
     .from('daily_activity_stats')
     .select('total_events, first_activity, last_activity, events_per_hour')
-    .gte('date', toLocalDateKey(sevenDaysAgo))
+    .gte('date', toLocalDateKey(fourteenDaysAgo))
     .lt('date', toLocalDateKey(today))
 
   if (error) {
