@@ -1,6 +1,22 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { supabase } from '../services/supabase'
+import {
+  MINIMUM_DAYS_REQUIRED,
+  DAY_START_HOUR,
+  NIGHT_START_HOUR,
+  NIGHT_END_HOUR,
+  calculateDayStart,
+  getDayEvents,
+  getDayEventsUntilHour,
+  getActiveDayHours,
+  getActiveDayHoursUntilHour,
+  isNightHour,
+  formatMinutesToTime,
+  toLocalDateKey,
+  avg,
+  stddev
+} from '../composables/useDataQuality'
 
 // Data
 const loading = ref(true)
@@ -11,10 +27,8 @@ const dataQuality = ref({ days: 0, sufficient: false })
 const currentHour = ref(new Date().getHours())
 
 // Constanten
-const DAY_START_HOUR = 6  // Dag begint om 06:00
-const NIGHT_END_HOUR = 6  // Nacht eindigt om 06:00
-const NIGHT_START_HOUR = 23 // Nacht begint om 23:00
 const DAY_COMPLETE_HOUR = 21 // Dag is "compleet" om 21:00
+const minDaysRequired = MINIMUM_DAYS_REQUIRED // For template access
 
 // Helper: Is de dag nog bezig?
 const isDayInProgress = computed(() => {
@@ -31,9 +45,7 @@ function timeToDecimal(timeStr) {
 // Helper: decimal hours to HH:MM format
 function decimalToTime(decimal) {
   if (decimal === null || decimal === undefined) return '--:--'
-  const hours = Math.floor(decimal)
-  const minutes = Math.round((decimal - hours) * 60)
-  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+  return formatMinutesToTime(decimal * 60) || '--:--'
 }
 
 // Helper: format TIME for display
@@ -42,72 +54,11 @@ function formatTime(timeStr) {
   return timeStr.substring(0, 5)
 }
 
-// Helper: Is dit een nacht-uur? (23:00-06:00)
-function isNightHour(hour) {
-  return hour >= NIGHT_START_HOUR || hour < NIGHT_END_HOUR
-}
-
-// Helper: Bereken eerste activiteit NA 06:00 uit events_per_hour
-function getFirstDayActivity(eventsPerHour) {
-  if (!eventsPerHour) return null
-  for (let h = DAY_START_HOUR; h < 24; h++) {
-    if (eventsPerHour[h] > 0) {
-      return h
-    }
-  }
-  return null
-}
-
-// Helper: Bereken dag-events (06:00-23:00)
-function getDayEvents(eventsPerHour) {
-  if (!eventsPerHour) return 0
-  let total = 0
-  for (let h = DAY_START_HOUR; h < NIGHT_START_HOUR; h++) {
-    total += eventsPerHour[h] || 0
-  }
-  return total
-}
-
-// Helper: Bereken dag-events tot een bepaald uur
-function getDayEventsUntilHour(eventsPerHour, untilHour) {
-  if (!eventsPerHour) return 0
-  let total = 0
-  const startHour = DAY_START_HOUR
-  const endHour = Math.min(untilHour, NIGHT_START_HOUR)
-  for (let h = startHour; h < endHour; h++) {
-    total += eventsPerHour[h] || 0
-  }
-  return total
-}
-
-// Helper: Bereken actieve dag-uren (06:00-23:00)
-function getActiveDayHours(eventsPerHour) {
-  if (!eventsPerHour) return 0
-  let count = 0
-  for (let h = DAY_START_HOUR; h < NIGHT_START_HOUR; h++) {
-    if (eventsPerHour[h] > 0) count++
-  }
-  return count
-}
-
-// Helper: Bereken actieve dag-uren tot een bepaald uur
-function getActiveDayHoursUntilHour(eventsPerHour, untilHour) {
-  if (!eventsPerHour) return 0
-  let count = 0
-  const startHour = DAY_START_HOUR
-  const endHour = Math.min(untilHour, NIGHT_START_HOUR)
-  for (let h = startHour; h < endHour; h++) {
-    if (eventsPerHour[h] > 0) count++
-  }
-  return count
-}
-
-// Helper: local date key
-function toLocalDateKey(date) {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
+// Helper: Get first day activity hour from events_per_hour using shared calculateDayStart
+function getFirstDayActivityHourHour(eventsPerHour) {
+  const dayStartMinutes = calculateDayStart(eventsPerHour)
+  if (dayStartMinutes === null) return null
+  return Math.floor(dayStartMinutes / 60) // Convert minutes to hour
 }
 
 // Computed: status indicator
@@ -138,7 +89,7 @@ const statusInfo = computed(() => {
   const zScores = []
 
   // Eerste dag-activiteit z-score (na 06:00)
-  const todayFirstDay = getFirstDayActivity(todayStats.value.events_per_hour)
+  const todayFirstDay = getFirstDayActivityHour(todayStats.value.events_per_hour)
   if (todayFirstDay !== null && baselineStats.value.first_day_activity_avg) {
     const z = Math.abs(todayFirstDay - baselineStats.value.first_day_activity_avg) / (baselineStats.value.first_day_activity_std || 1)
     zScores.push(z)
@@ -172,7 +123,7 @@ const comparisonItems = computed(() => {
   const items = []
 
   // Eerste dag-activiteit (na 06:00)
-  const todayFirstDay = getFirstDayActivity(todayStats.value.events_per_hour)
+  const todayFirstDay = getFirstDayActivityHour(todayStats.value.events_per_hour)
   const avgFirstDay = baselineStats.value.first_day_activity_avg
   items.push({
     label: 'Opstaan',
@@ -315,7 +266,7 @@ async function loadBaseline() {
   // Data quality
   dataQuality.value = {
     days: data?.length || 0,
-    sufficient: (data?.length || 0) >= 7
+    sufficient: (data?.length || 0) >= MINIMUM_DAYS_REQUIRED
   }
 
   if (!data || data.length === 0) {
@@ -325,7 +276,7 @@ async function loadBaseline() {
 
   // Eerste DAG-activiteit (na 06:00)
   const firstDayActivities = data
-    .map(d => getFirstDayActivity(d.events_per_hour))
+    .map(d => getFirstDayActivityHour(d.events_per_hour))
     .filter(v => v !== null)
 
   // Dag-events (06:00-23:00)
@@ -407,19 +358,6 @@ async function loadWeekData() {
   weekData.value = data || []
 }
 
-// Stats helpers
-function avg(arr) {
-  if (!arr || arr.length === 0) return null
-  return arr.reduce((a, b) => a + b, 0) / arr.length
-}
-
-function stddev(arr) {
-  if (!arr || arr.length < 2) return 1
-  const mean = avg(arr)
-  const squareDiffs = arr.map(v => Math.pow(v - mean, 2))
-  return Math.sqrt(avg(squareDiffs)) || 1
-}
-
 // Sparkline SVG path generator
 function sparklinePath(values, width = 120, height = 30) {
   if (!values || values.length === 0) return ''
@@ -475,7 +413,7 @@ onMounted(async () => {
           <div>
             <p class="font-medium text-amber-800">Onvoldoende data voor betrouwbare analyse</p>
             <p class="text-sm text-amber-600">
-              {{ dataQuality.days }} dagen beschikbaar, minimaal 7 nodig voor goede vergelijking
+              {{ dataQuality.days }} dagen beschikbaar, minimaal {{ minDaysRequired }} nodig voor goede vergelijking
             </p>
           </div>
         </div>

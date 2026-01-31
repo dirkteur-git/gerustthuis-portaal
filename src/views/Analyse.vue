@@ -1,21 +1,19 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { supabase } from '../services/supabase'
+import {
+  MINIMUM_DAYS_REQUIRED,
+  toLocalDateKey,
+  timeToMinutes
+} from '../composables/useDataQuality'
 
 // State
 const loading = ref(true)
+const error = ref(null)
 const selectedDate = ref(toLocalDateKey(new Date()))
 const dayStats = ref(null)
 const baselineStats = ref(null)
 const dataQuality = ref(null)
-
-// Datum helpers
-function toLocalDateKey(date) {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
 
 function formatDateDisplay(dateStr) {
   const d = new Date(dateStr)
@@ -51,13 +49,6 @@ const features = [
   { key: 'longest_gap_minutes', label: 'Langste gap', unit: 'min' },
   { key: 'night_events', label: 'Nacht events', unit: '' },
 ]
-
-// Time to minutes helper
-function timeToMinutes(time) {
-  if (!time) return null
-  const parts = time.split(':')
-  return parseInt(parts[0]) * 60 + parseInt(parts[1])
-}
 
 function minutesToTime(minutes) {
   if (minutes === null || minutes === undefined) return '-'
@@ -120,40 +111,49 @@ const anomalyLabel = computed(() => {
 
 // Load data for selected date
 async function loadDayStats() {
-  const { data, error } = await supabase
-    .from('daily_activity_stats')
-    .select('*')
-    .eq('date', selectedDate.value)
-    .single()
+  try {
+    const { data, error: fetchError } = await supabase
+      .from('daily_activity_stats')
+      .select('*')
+      .eq('date', selectedDate.value)
+      .single()
 
-  if (error && error.code !== 'PGRST116') {
-    console.error('Error loading day stats:', error)
+    if (fetchError && fetchError.code !== 'PGRST116') {
+      console.error('Error loading day stats:', fetchError)
+      error.value = 'Kan dagstatistieken niet laden'
+      return
+    }
+
+    dayStats.value = data || null
+    error.value = null
+  } catch (e) {
+    console.error('Error loading day stats:', e)
+    error.value = 'Onverwachte fout bij laden dagstatistieken'
   }
-
-  dayStats.value = data || null
 }
 
 // Load baseline stats (last 14 days excluding selected date)
 async function loadBaselineStats() {
-  const selected = new Date(selectedDate.value)
-  const fourteenDaysAgo = new Date(selected)
-  fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14)
+  try {
+    const selected = new Date(selectedDate.value)
+    const fourteenDaysAgo = new Date(selected)
+    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14)
 
-  const { data, error } = await supabase
-    .from('daily_activity_stats')
-    .select('*')
-    .gte('date', toLocalDateKey(fourteenDaysAgo))
-    .lt('date', selectedDate.value)
+    const { data, error: fetchError } = await supabase
+      .from('daily_activity_stats')
+      .select('*')
+      .gte('date', toLocalDateKey(fourteenDaysAgo))
+      .lt('date', selectedDate.value)
 
-  if (error) {
-    console.error('Error loading baseline stats:', error)
-    return
-  }
+    if (fetchError) {
+      console.error('Error loading baseline stats:', fetchError)
+      return
+    }
 
-  if (!data || data.length === 0) {
-    baselineStats.value = null
-    return
-  }
+    if (!data || data.length === 0) {
+      baselineStats.value = null
+      return
+    }
 
   // Bereken gemiddelden en standaarddeviaties
   const stats = {}
@@ -185,8 +185,11 @@ async function loadBaselineStats() {
     }
   })
 
-  stats.daysCount = data.length
-  baselineStats.value = stats
+    stats.daysCount = data.length
+    baselineStats.value = stats
+  } catch (e) {
+    console.error('Error loading baseline stats:', e)
+  }
 }
 
 // Load data quality info
@@ -317,13 +320,23 @@ onMounted(() => {
     </div>
 
     <template v-else>
+      <!-- Error message -->
+      <div v-if="error" class="bg-red-50 border border-red-200 rounded-lg p-4">
+        <div class="flex items-center gap-3">
+          <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <p class="text-red-800">{{ error }}</p>
+        </div>
+      </div>
+
       <!-- No data warning -->
-      <div v-if="!dayStats" class="bg-amber-50 border border-amber-200 rounded-lg p-4">
+      <div v-else-if="!dayStats" class="bg-amber-50 border border-amber-200 rounded-lg p-4">
         <div class="flex items-center gap-3">
           <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
-          <p class="text-amber-800">Geen data beschikbaar voor deze datum</p>
+          <p class="text-amber-800">Geen data beschikbaar voor deze datum. Controleer of de daily_activity_stats tabel gevuld is.</p>
         </div>
       </div>
 

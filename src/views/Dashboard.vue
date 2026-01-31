@@ -1,6 +1,13 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { supabase } from '../services/supabase'
+import {
+  MINIMUM_DAYS_REQUIRED,
+  calculateDayStart,
+  formatMinutesToTime,
+  toLocalDateKey,
+  timeToMinutes
+} from '../composables/useDataQuality'
 
 // Data
 const loading = ref(true)
@@ -15,15 +22,15 @@ const heatmapHover = ref(null) // { day, hour, count, x, y }
 
 // Computed: Status bepaling (Wisdom niveau)
 const statusInfo = computed(() => {
-  // Minimaal 7 dagen data nodig voor betrouwbare meting
-  if (!todayStats.value || !averageStats.value || averageStats.value.daysCount < 7) {
+  // Minimaal MINIMUM_DAYS_REQUIRED dagen data nodig voor betrouwbare meting
+  if (!todayStats.value || !averageStats.value || averageStats.value.daysCount < MINIMUM_DAYS_REQUIRED) {
     const daysCount = averageStats.value?.daysCount || 0
     return {
       level: 'unknown',
       color: 'gray',
       title: 'We leren nog',
       subtitle: daysCount > 0
-        ? `Nog ${7 - daysCount} dagen nodig voor een betrouwbaar beeld`
+        ? `Nog ${MINIMUM_DAYS_REQUIRED - daysCount} dagen nodig voor een betrouwbaar beeld`
         : 'Nog een paar dagen nodig voor een betrouwbaar beeld'
     }
   }
@@ -192,19 +199,6 @@ function formatTime(time) {
   return `${String(time.getHours()).padStart(2, '0')}:${String(time.getMinutes()).padStart(2, '0')}`
 }
 
-function timeToMinutes(time) {
-  if (!time) return 0
-  const parts = time.split(':')
-  return parseInt(parts[0]) * 60 + parseInt(parts[1])
-}
-
-function toLocalDateKey(date) {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
 function formatDayLabel(dateStr) {
   const d = new Date(dateStr)
   const days = ['zo', 'ma', 'di', 'wo', 'do', 'vr', 'za']
@@ -234,38 +228,6 @@ function getActivityIcon(deviceType) {
   }
 }
 
-// Bereken "dagstart" uit events_per_hour array
-// Dagstart = eerste uur na 05:00 met ≥2 events EN gevolgd door activiteit binnen 2 uur
-function calculateDayStart(eventsPerHour) {
-  if (!eventsPerHour || eventsPerHour.length < 24) return null
-
-  // Zoek eerste cluster na 05:00
-  for (let h = 5; h < 12; h++) {
-    if (eventsPerHour[h] >= 2) {
-      // Check of er binnen 2 uur nog activiteit is
-      const hasFollowUp = (eventsPerHour[h + 1] || 0) > 0 || (eventsPerHour[h + 2] || 0) > 0
-      if (hasFollowUp) {
-        return h * 60 // minutes since midnight
-      }
-    }
-  }
-
-  // Fallback: eerste uur met activiteit na 05:00
-  for (let h = 5; h < 24; h++) {
-    if (eventsPerHour[h] > 0) {
-      return h * 60
-    }
-  }
-
-  return null
-}
-
-function formatMinutesToTime(minutes) {
-  if (minutes === null || minutes === undefined) return null
-  const h = Math.floor(minutes / 60)
-  const m = Math.round(minutes % 60)
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
-}
 
 // Format datum voor tooltip: "Do 30 jan, 14:00"
 function formatHoverDate(dateStr, hourNum) {
