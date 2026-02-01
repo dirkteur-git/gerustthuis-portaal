@@ -159,12 +159,18 @@ const lastActivityInfo = computed(() => {
   }
 })
 
+// Kamers die we niet tonen (nog niet in gebruik)
+const hiddenRooms = ['Toilet', 'Tuin']
+
 // Computed: Gegroepeerde recente activiteit (unieke kamers)
 const groupedRecentActivity = computed(() => {
   const seen = new Set()
   const result = []
 
   for (const activity of recentActivity.value) {
+    // Skip verborgen kamers
+    if (hiddenRooms.includes(activity.room_name)) continue
+
     // Skip als we deze kamer al hebben gezien
     if (seen.has(activity.room_name)) continue
 
@@ -255,6 +261,25 @@ function handleHeatmapHover(event, day, hour) {
     return 100
   }
 
+  // Get position from touch or mouse event
+  const clientX = event.touches ? event.touches[0].clientX : event.clientX
+  const clientY = event.touches ? event.touches[0].clientY : event.clientY
+
+  // Calculate position with bounds checking
+  const tooltipWidth = 200
+  const tooltipHeight = 120
+  let x = clientX + 12
+  let y = clientY - 10
+
+  // Keep tooltip within viewport
+  if (x + tooltipWidth > window.innerWidth) {
+    x = clientX - tooltipWidth - 12
+  }
+  if (y + tooltipHeight > window.innerHeight) {
+    y = window.innerHeight - tooltipHeight - 10
+  }
+  if (y < 10) y = 10
+
   heatmapHover.value = {
     dateLabel: formatHoverDate(day.date, hour.hour),
     rooms: roomEntries.map(([name, count]) => ({
@@ -262,8 +287,8 @@ function handleHeatmapHover(event, day, hour) {
       count,
       barWidth: getBarWidth(count)
     })),
-    x: event.clientX,
-    y: event.clientY
+    x,
+    y
   }
 }
 
@@ -562,19 +587,10 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- KPI Cards (Information + Knowledge) -->
-      <div class="grid grid-cols-2 gap-4">
-        <!-- Eerste activiteit -->
-        <div class="bg-white border border-gray-200 rounded-lg p-5">
-          <p class="text-lg font-semibold text-gray-900">{{ firstActivityInfo.title }}</p>
-          <p class="text-sm text-gray-500 mt-1">{{ firstActivityInfo.subtitle }}</p>
-        </div>
-
-        <!-- Laatste activiteit -->
-        <div class="bg-white border border-gray-200 rounded-lg p-5">
-          <p class="text-lg font-semibold text-gray-900">{{ lastActivityInfo.title }}</p>
-          <p class="text-sm text-gray-500 mt-1">{{ lastActivityInfo.subtitle }}</p>
-        </div>
+      <!-- KPI Card: Laatste activiteit -->
+      <div class="bg-white border border-gray-200 rounded-lg p-5">
+        <p class="text-lg font-semibold text-gray-900">{{ lastActivityInfo.title }}</p>
+        <p class="text-sm text-gray-500 mt-1">{{ lastActivityInfo.subtitle }}</p>
       </div>
 
       <!-- Heatmap (Information - visueel) -->
@@ -599,11 +615,13 @@ onUnmounted(() => {
                   v-for="hour in day.hours"
                   :key="hour.hour"
                   :class="[
-                    'flex-1 h-4 rounded-sm cursor-pointer hover:ring-2 hover:ring-emerald-400 hover:ring-offset-1',
+                    'flex-1 h-6 md:h-4 rounded-sm cursor-pointer hover:ring-2 hover:ring-emerald-400 hover:ring-offset-1',
                     getHeatmapColor(hour.count)
                   ]"
                   @mouseenter="handleHeatmapHover($event, day, hour)"
                   @mouseleave="handleHeatmapLeave"
+                  @touchstart.passive="handleHeatmapHover($event, day, hour)"
+                  @touchend="handleHeatmapLeave"
                 ></div>
               </div>
             </div>
@@ -655,25 +673,6 @@ onUnmounted(() => {
         </router-link>
       </div>
 
-      <!-- Offline sensoren (alleen als er problemen zijn) -->
-      <div
-        v-if="offlineSensors.length > 0"
-        class="bg-amber-50 border border-amber-200 rounded-lg p-4"
-      >
-        <div class="flex items-start gap-3">
-          <svg class="w-5 h-5 text-amber-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-          <div>
-            <p class="text-sm font-medium text-amber-800">
-              {{ offlineSensors.length === 1 ? 'Sensor niet bereikbaar' : `${offlineSensors.length} sensoren niet bereikbaar` }}
-            </p>
-            <p class="text-sm text-amber-600 mt-0.5">
-              {{ offlineSensors.map(s => s.room_name || s.name).join(', ') }}
-            </p>
-          </div>
-        </div>
-      </div>
     </template>
 
     <!-- Heatmap Tooltip -->
