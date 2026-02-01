@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { supabase } from '../services/supabase'
+import Logo from '../components/Logo.vue'
 
 const router = useRouter()
 const email = ref('')
@@ -104,7 +105,9 @@ function toggleMode() {
     <div class="max-w-md w-full">
       <!-- Logo -->
       <div class="text-center mb-8">
-        <h1 class="text-2xl font-bold text-emerald-600">GerustThuis</h1>
+        <div class="flex justify-center mb-2">
+          <Logo size="lg" />
+        </div>
         <p class="text-gray-500 mt-1">Privacy-first thuismonitoring</p>
       </div>
 

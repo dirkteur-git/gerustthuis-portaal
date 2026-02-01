@@ -2,6 +2,7 @@
 import { RouterView, RouterLink, useRoute, useRouter } from 'vue-router'
 import { computed, ref, onMounted } from 'vue'
 import { supabase, signOut } from './services/supabase'
+import Logo from './components/Logo.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -52,7 +53,7 @@ onMounted(async () => {
     <aside class="w-64 bg-white border-r border-gray-200 flex flex-col flex-shrink-0">
       <!-- Logo -->
       <div class="h-16 flex items-center px-6 border-b border-gray-200">
-        <span class="text-xl font-bold text-emerald-600">GerustThuis</span>
+        <Logo size="md" />
       </div>
 
       <!-- Navigation -->
