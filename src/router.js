@@ -51,12 +51,6 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
-    path: '/debug/hue',
-    name: 'HueDebug',
-    component: () => import('./views/HueDebug.vue'),
-    meta: { requiresAuth: true }
-  },
-  {
     path: '/uitnodiging/:token',
     name: 'AcceptInvitation',
     component: () => import('./views/AcceptInvitation.vue'),
