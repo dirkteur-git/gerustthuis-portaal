@@ -2,9 +2,9 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
-  supabase, getHueConfig, userState, isAdmin, isSuperAdmin,
+  supabase, getHueConfig, userState, isAdmin,
   getHouseholdMembers, inviteToHousehold, removeMember, getHouseholdInvitations,
-  getCurrentHouseholdId, getAllUserProfiles
+  getCurrentHouseholdId
 } from '../services/supabase'
 
 const router = useRouter()
@@ -41,15 +41,10 @@ const inviteSending = ref(false)
 const inviteMessage = ref(null)
 const memberRemoving = ref(null)
 
-// Superadmin state
-const allUsers = ref([])
-const usersLoading = ref(false)
-
 // Computed
 const isHueConnected = computed(() => hueConfig.value?.status === 'active')
 // Huishouden tab is always visible — every user is admin of their own household
 const showHouseholdTab = computed(() => userState.loaded)
-const showUsersTab = computed(() => isSuperAdmin())
 
 const hueConnectionAge = computed(() => {
   if (!hueConfig.value?.created_at) return null
@@ -65,9 +60,6 @@ const hueConnectionAge = computed(() => {
 watch(activeTab, async (tab) => {
   if (tab === 'huishouden') {
     await loadHouseholdData()
-  }
-  if (tab === 'gebruikers') {
-    await loadAllUsers()
   }
 })
 
@@ -212,17 +204,6 @@ function copyInviteLink(link) {
   navigator.clipboard.writeText(link)
 }
 
-// Superadmin: load all users
-async function loadAllUsers() {
-  usersLoading.value = true
-  try {
-    allUsers.value = await getAllUserProfiles()
-  } catch (e) {
-    console.error('Error loading all users:', e)
-  } finally {
-    usersLoading.value = false
-  }
-}
 </script>
 
 <template>
@@ -269,18 +250,6 @@ async function loadAllUsers() {
           ]"
         >
           Huishouden
-        </button>
-        <button
-          v-if="showUsersTab"
-          @click="activeTab = 'gebruikers'"
-          :class="[
-            'py-3 text-sm font-medium border-b-2 transition-colors',
-            activeTab === 'gebruikers'
-              ? 'border-purple-600 text-purple-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          ]"
-        >
-          Gebruikers
         </button>
       </nav>
     </div>
@@ -680,68 +649,5 @@ async function loadAllUsers() {
       </template>
     </div>
 
-    <!-- Gebruikers Tab (superadmin only) -->
-    <div v-if="activeTab === 'gebruikers'" class="space-y-4">
-      <div class="bg-white rounded-xl shadow-sm border p-6">
-        <div class="flex items-center justify-between mb-4">
-          <div>
-            <h2 class="text-lg font-semibold text-gray-900">Alle gebruikers</h2>
-            <p class="text-sm text-gray-500">Overzicht van alle geregistreerde gebruikers</p>
-          </div>
-          <span class="px-2 py-1 text-xs font-medium bg-purple-100 text-purple-700 rounded-full">
-            Super Admin
-          </span>
-        </div>
-
-        <div v-if="usersLoading" class="text-gray-500 text-center py-8">Laden...</div>
-
-        <div v-else-if="allUsers.length === 0" class="text-center py-8 text-gray-400">
-          Geen gebruikers gevonden
-        </div>
-
-        <div v-else class="space-y-3">
-          <div
-            v-for="u in allUsers"
-            :key="u.id"
-            class="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            <div class="flex items-center gap-3 min-w-0">
-              <div class="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center shrink-0">
-                <span class="text-purple-700 text-sm font-medium">
-                  {{ (u.display_name || u.id || '?').substring(0, 2).toUpperCase() }}
-                </span>
-              </div>
-              <div class="min-w-0">
-                <p class="text-sm font-medium text-gray-900 truncate">
-                  {{ u.display_name || 'Geen naam' }}
-                </p>
-                <p class="text-xs text-gray-500 truncate">
-                  {{ u.id }}
-                </p>
-                <p v-if="u.communication_preference" class="text-xs text-gray-400">
-                  Voorkeur: {{ u.communication_preference }}
-                </p>
-              </div>
-            </div>
-            <div class="flex flex-col items-end gap-1 shrink-0 ml-4">
-              <div v-if="u.households && u.households.length > 0" class="flex flex-wrap gap-1 justify-end">
-                <span
-                  v-for="h in u.households"
-                  :key="h.id"
-                  class="px-2 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-700 rounded-full"
-                >
-                  {{ h.name }}
-                  <span class="text-emerald-500 ml-1">({{ h.role }})</span>
-                </span>
-              </div>
-              <span v-else class="text-xs text-gray-400">Geen huishouden</span>
-              <span class="text-xs text-gray-400">
-                Aangemeld: {{ formatDateTime(u.created_at) }}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
   </div>
 </template>

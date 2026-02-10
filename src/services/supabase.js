@@ -75,12 +75,7 @@ export async function loadUserProfile() {
 
   userState.profile = profile
 
-  // Set global admin email for isGlobalAdmin() checks
-  setGlobalAdminEmail(user.email)
-
   // Load households — RLS handles filtering automatically
-  // For dirk@boostix.nl: RLS returns ALL households
-  // For normal users: RLS returns only households they are a member of
   let households = []
   try {
     const { data: allHouseholds, error } = await supabase
@@ -114,7 +109,7 @@ export async function loadUserProfile() {
   )
   userState.households = households.map(h => ({
     ...h,
-    role: membershipMap[h.id] || (isGlobalAdmin() ? 'admin' : null)
+    role: membershipMap[h.id] || null
   }))
 
   // Determine current household
@@ -127,9 +122,7 @@ export async function loadUserProfile() {
   }
 
   // Determine role
-  if (isGlobalAdmin()) {
-    userState.currentRole = 'admin'
-  } else if (userState.currentHousehold) {
+  if (userState.currentHousehold) {
     userState.currentRole = membershipMap[userState.currentHousehold.id] || 'admin'
   } else {
     userState.currentRole = 'admin'
@@ -139,23 +132,8 @@ export async function loadUserProfile() {
   return profile
 }
 
-// Global admin: dirk@boostix.nl has invisible access to all households
-// Not visible as "super admin" in UI — just always has access
-let _globalAdminEmail = null
-export function setGlobalAdminEmail(email) {
-  _globalAdminEmail = email
-}
-export function isGlobalAdmin() {
-  return _globalAdminEmail === 'dirk@boostix.nl'
-}
-
-// Alias voor backwards compatibility (gebruikt in Instellingen.vue)
-export function isSuperAdmin() {
-  return isGlobalAdmin()
-}
-
 export function isAdmin() {
-  return userState.currentRole === 'admin' || userState.currentRole === 'superadmin'
+  return userState.currentRole === 'admin'
 }
 
 export function getCurrentRole() {
@@ -178,17 +156,13 @@ export async function switchHousehold(householdId) {
   userState.currentHousehold = userState.households.find(h => h.id === householdId) || null
 
   // Recalculate role
-  if (isGlobalAdmin()) {
-    userState.currentRole = 'admin'
-  } else {
-    const { data: membership } = await supabase
-      .from('household_members')
-      .select('role')
-      .eq('household_id', householdId)
-      .eq('user_id', user.id)
-      .single()
-    userState.currentRole = membership?.role || null
-  }
+  const { data: membership } = await supabase
+    .from('household_members')
+    .select('role')
+    .eq('household_id', householdId)
+    .eq('user_id', user.id)
+    .single()
+  userState.currentRole = membership?.role || null
 }
 
 export async function getAllHouseholds() {
@@ -226,17 +200,14 @@ export async function getHouseholdMembers(householdId) {
       (profiles || []).map(p => [p.id, p])
     )
 
-    return members
-      .map(m => ({
-        id: m.id,
-        user_id: m.user?.id,
-        email: m.user?.email?.email || m.user?.id,
-        display_name: profileMap[m.user?.id]?.display_name || null,
-        role: m.role,
-        created_at: m.created_at,
-      }))
-      // Filter out the global admin (invisible in member lists)
-      .filter(m => m.email !== 'dirk@boostix.nl')
+    return members.map(m => ({
+      id: m.id,
+      user_id: m.user?.id,
+      email: m.user?.email?.email || m.user?.id,
+      display_name: profileMap[m.user?.id]?.display_name || null,
+      role: m.role,
+      created_at: m.created_at,
+    }))
   }
 
   return members
@@ -289,50 +260,6 @@ export async function getHouseholdInvitations(householdId) {
 
   if (error) console.error('Error fetching invitations:', error)
   return data || []
-}
-
-// ============================================================
-// Superadmin functions
-// ============================================================
-
-export async function getAllUserProfiles() {
-  // RLS filtert automatisch: alleen superadmin ziet alle profielen
-  const { data: profiles, error: profilesError } = await supabase
-    .from('user_profiles')
-    .select('*')
-    .order('created_at', { ascending: false })
-
-  if (profilesError) {
-    console.error('Error fetching user profiles:', profilesError)
-    return []
-  }
-
-  // Haal alle households en members op om te koppelen
-  const { data: allMembers } = await supabase
-    .from('household_members')
-    .select('user_id, household_id, role')
-
-  const { data: allHouseholds } = await supabase
-    .from('households')
-    .select('id, name, config_id')
-
-  const householdMap = Object.fromEntries(
-    (allHouseholds || []).map(h => [h.id, h])
-  )
-
-  // Koppel household info aan elke user
-  return (profiles || []).map(profile => {
-    const memberships = (allMembers || []).filter(m => m.user_id === profile.id)
-    const households = memberships.map(m => ({
-      ...householdMap[m.household_id],
-      role: m.role
-    })).filter(h => h.id) // filter null entries
-
-    return {
-      ...profile,
-      households
-    }
-  })
 }
 
 // ============================================================
