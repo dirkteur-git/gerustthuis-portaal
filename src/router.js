@@ -55,6 +55,12 @@ const routes = [
     name: 'HueDebug',
     component: () => import('./views/HueDebug.vue'),
     meta: { requiresAuth: true }
+  },
+  {
+    path: '/uitnodiging/:token',
+    name: 'AcceptInvitation',
+    component: () => import('./views/AcceptInvitation.vue'),
+    meta: { requiresAuth: false }
   }
 ]
 

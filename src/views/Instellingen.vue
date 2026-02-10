@@ -1,7 +1,11 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { supabase, getHueConfig } from '../services/supabase'
+import {
+  supabase, getHueConfig, userState, isAdmin, isSuperAdmin,
+  getHouseholdMembers, inviteToHousehold, removeMember, getHouseholdInvitations,
+  getCurrentHouseholdId, getAllUserProfiles
+} from '../services/supabase'
 
 const router = useRouter()
 const activeTab = ref('account')
@@ -29,8 +33,23 @@ const profileForm = ref({
 const profileSaving = ref(false)
 const profileMessage = ref(null)
 
+// Household tab state
+const householdMembers = ref([])
+const householdInvitations = ref([])
+const inviteForm = ref({ email: '', role: 'viewer' })
+const inviteSending = ref(false)
+const inviteMessage = ref(null)
+const memberRemoving = ref(null)
+
+// Superadmin state
+const allUsers = ref([])
+const usersLoading = ref(false)
+
 // Computed
 const isHueConnected = computed(() => hueConfig.value?.status === 'active')
+// Huishouden tab is always visible — every user is admin of their own household
+const showHouseholdTab = computed(() => userState.loaded)
+const showUsersTab = computed(() => isSuperAdmin())
 
 const hueConnectionAge = computed(() => {
   if (!hueConfig.value?.created_at) return null
@@ -40,6 +59,16 @@ const hueConnectionAge = computed(() => {
   if (days === 0) return 'Vandaag'
   if (days === 1) return '1 dag'
   return `${days} dagen`
+})
+
+// Load data when switching tabs
+watch(activeTab, async (tab) => {
+  if (tab === 'huishouden') {
+    await loadHouseholdData()
+  }
+  if (tab === 'gebruikers') {
+    await loadAllUsers()
+  }
 })
 
 onMounted(async () => {
@@ -115,6 +144,85 @@ async function saveProfile() {
 function connectHue() {
   router.push('/hue')
 }
+
+// Household management
+const householdError = ref(false)
+
+async function loadHouseholdData() {
+  householdError.value = false
+  const householdId = getCurrentHouseholdId()
+  if (!householdId) {
+    // No household yet — tables may not exist
+    householdError.value = true
+    return
+  }
+
+  try {
+    householdMembers.value = await getHouseholdMembers(householdId)
+    householdInvitations.value = await getHouseholdInvitations(householdId)
+  } catch (e) {
+    console.warn('Could not load household data:', e.message)
+    householdError.value = true
+  }
+}
+
+async function handleInvite() {
+  if (!inviteForm.value.email) return
+
+  inviteSending.value = true
+  inviteMessage.value = null
+
+  try {
+    const householdId = getCurrentHouseholdId()
+    if (!householdId) throw new Error('Geen huishouden geselecteerd')
+
+    const invitation = await inviteToHousehold(householdId, inviteForm.value.email, inviteForm.value.role)
+
+    inviteMessage.value = {
+      type: 'success',
+      text: `Uitnodiging aangemaakt! Deel deze link:`,
+      link: `${window.location.origin}/uitnodiging/${invitation.token}`
+    }
+
+    inviteForm.value = { email: '', role: 'viewer' }
+    await loadHouseholdData()
+  } catch (error) {
+    console.error('Error inviting:', error)
+    inviteMessage.value = { type: 'error', text: error.message || 'Kon uitnodiging niet versturen' }
+  } finally {
+    inviteSending.value = false
+  }
+}
+
+async function handleRemoveMember(member) {
+  if (!confirm(`Weet je zeker dat je ${member.display_name || member.email} wilt verwijderen?`)) return
+
+  memberRemoving.value = member.id
+  try {
+    await removeMember(member.id)
+    await loadHouseholdData()
+  } catch (error) {
+    console.error('Error removing member:', error)
+  } finally {
+    memberRemoving.value = null
+  }
+}
+
+function copyInviteLink(link) {
+  navigator.clipboard.writeText(link)
+}
+
+// Superadmin: load all users
+async function loadAllUsers() {
+  usersLoading.value = true
+  try {
+    allUsers.value = await getAllUserProfiles()
+  } catch (e) {
+    console.error('Error loading all users:', e)
+  } finally {
+    usersLoading.value = false
+  }
+}
 </script>
 
 <template>
@@ -149,6 +257,30 @@ function connectHue() {
           ]"
         >
           Integraties
+        </button>
+        <button
+          v-if="showHouseholdTab"
+          @click="activeTab = 'huishouden'"
+          :class="[
+            'py-3 text-sm font-medium border-b-2 transition-colors',
+            activeTab === 'huishouden'
+              ? 'border-emerald-600 text-emerald-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          ]"
+        >
+          Huishouden
+        </button>
+        <button
+          v-if="showUsersTab"
+          @click="activeTab = 'gebruikers'"
+          :class="[
+            'py-3 text-sm font-medium border-b-2 transition-colors',
+            activeTab === 'gebruikers'
+              ? 'border-purple-600 text-purple-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          ]"
+        >
+          Gebruikers
         </button>
       </nav>
     </div>
@@ -370,6 +502,242 @@ function connectHue() {
             <div class="flex-1">
               <h3 class="font-medium text-gray-500">Meer integraties</h3>
               <p class="text-sm text-gray-400">Binnenkort beschikbaar</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Huishouden Tab -->
+    <div v-if="activeTab === 'huishouden'" class="space-y-4">
+      <!-- Huishouden not set up yet -->
+      <div v-if="householdError" class="bg-white rounded-xl shadow-sm border p-6">
+        <div class="text-center py-6">
+          <div class="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg class="w-8 h-8 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </div>
+          <h2 class="text-lg font-semibold text-gray-900 mb-2">Huishouden</h2>
+          <p class="text-gray-500 text-sm max-w-sm mx-auto">
+            Het huishoudensysteem wordt nog ingesteld. Zodra dit klaar is kun je hier leden uitnodigen en beheren.
+          </p>
+        </div>
+      </div>
+
+      <template v-else>
+      <!-- Huishouden naam -->
+      <div class="bg-white rounded-xl shadow-sm border p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-1">
+          {{ userState.currentHousehold?.name || 'Huishouden' }}
+        </h2>
+        <p class="text-sm text-gray-500">Beheer wie toegang heeft tot dit huishouden</p>
+      </div>
+
+      <!-- Leden -->
+      <div class="bg-white rounded-xl shadow-sm border p-6">
+        <h3 class="text-base font-semibold text-gray-900 mb-4">Leden</h3>
+
+        <div v-if="householdMembers.length === 0" class="text-center py-6 text-gray-400">
+          Geen leden gevonden
+        </div>
+
+        <div v-else class="space-y-3">
+          <div
+            v-for="member in householdMembers"
+            :key="member.id"
+            class="flex items-center justify-between p-3 border rounded-lg"
+          >
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-9 h-9 bg-emerald-100 rounded-full flex items-center justify-center shrink-0">
+                <span class="text-emerald-700 text-sm font-medium">
+                  {{ (member.display_name || member.email || '?').substring(0, 2).toUpperCase() }}
+                </span>
+              </div>
+              <div class="min-w-0">
+                <p class="text-sm font-medium text-gray-900 truncate">
+                  {{ member.display_name || member.email }}
+                </p>
+                <p v-if="member.display_name" class="text-xs text-gray-500 truncate">
+                  {{ member.email }}
+                </p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <span
+                :class="[
+                  'px-2 py-0.5 text-xs font-medium rounded-full',
+                  member.role === 'admin'
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'bg-gray-100 text-gray-600'
+                ]"
+              >
+                {{ member.role === 'admin' ? 'Admin' : 'Viewer' }}
+              </span>
+              <button
+                v-if="member.user_id !== user?.id"
+                @click="handleRemoveMember(member)"
+                :disabled="memberRemoving === member.id"
+                class="p-1.5 text-gray-400 hover:text-red-600 transition-colors disabled:opacity-50"
+                title="Verwijderen"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Openstaande uitnodigingen -->
+      <div v-if="householdInvitations.length > 0" class="bg-white rounded-xl shadow-sm border p-6">
+        <h3 class="text-base font-semibold text-gray-900 mb-4">Openstaande uitnodigingen</h3>
+        <div class="space-y-3">
+          <div
+            v-for="inv in householdInvitations"
+            :key="inv.id"
+            class="flex items-center justify-between p-3 border border-dashed rounded-lg"
+          >
+            <div>
+              <p class="text-sm font-medium text-gray-700">{{ inv.invited_email }}</p>
+              <p class="text-xs text-gray-400">
+                Verloopt {{ formatDateTime(inv.expires_at) }}
+              </p>
+            </div>
+            <span
+              :class="[
+                'px-2 py-0.5 text-xs font-medium rounded-full',
+                inv.role === 'admin'
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'bg-gray-100 text-gray-600'
+              ]"
+            >
+              {{ inv.role === 'admin' ? 'Admin' : 'Viewer' }}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Uitnodigen -->
+      <div class="bg-white rounded-xl shadow-sm border p-6">
+        <h3 class="text-base font-semibold text-gray-900 mb-4">Iemand uitnodigen</h3>
+
+        <form @submit.prevent="handleInvite" class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">E-mailadres</label>
+            <input
+              v-model="inviteForm.email"
+              type="email"
+              placeholder="naam@voorbeeld.nl"
+              required
+              class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+            >
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Rol</label>
+            <select
+              v-model="inviteForm.role"
+              class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white"
+            >
+              <option value="viewer">Viewer - kan data bekijken</option>
+              <option value="admin">Admin - kan ook leden beheren</option>
+            </select>
+          </div>
+
+          <!-- Invite message -->
+          <div v-if="inviteMessage" :class="[
+            'p-3 rounded-lg text-sm',
+            inviteMessage.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+          ]">
+            <p>{{ inviteMessage.text }}</p>
+            <div v-if="inviteMessage.link" class="mt-2 flex items-center gap-2">
+              <input
+                :value="inviteMessage.link"
+                readonly
+                class="flex-1 px-2 py-1 text-xs bg-white border rounded font-mono"
+              >
+              <button
+                type="button"
+                @click="copyInviteLink(inviteMessage.link)"
+                class="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+              >
+                Kopieer
+              </button>
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            :disabled="inviteSending || !inviteForm.email"
+            class="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+          >
+            {{ inviteSending ? 'Versturen...' : 'Uitnodiging versturen' }}
+          </button>
+        </form>
+      </div>
+      </template>
+    </div>
+
+    <!-- Gebruikers Tab (superadmin only) -->
+    <div v-if="activeTab === 'gebruikers'" class="space-y-4">
+      <div class="bg-white rounded-xl shadow-sm border p-6">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-lg font-semibold text-gray-900">Alle gebruikers</h2>
+            <p class="text-sm text-gray-500">Overzicht van alle geregistreerde gebruikers</p>
+          </div>
+          <span class="px-2 py-1 text-xs font-medium bg-purple-100 text-purple-700 rounded-full">
+            Super Admin
+          </span>
+        </div>
+
+        <div v-if="usersLoading" class="text-gray-500 text-center py-8">Laden...</div>
+
+        <div v-else-if="allUsers.length === 0" class="text-center py-8 text-gray-400">
+          Geen gebruikers gevonden
+        </div>
+
+        <div v-else class="space-y-3">
+          <div
+            v-for="u in allUsers"
+            :key="u.id"
+            class="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center shrink-0">
+                <span class="text-purple-700 text-sm font-medium">
+                  {{ (u.display_name || u.id || '?').substring(0, 2).toUpperCase() }}
+                </span>
+              </div>
+              <div class="min-w-0">
+                <p class="text-sm font-medium text-gray-900 truncate">
+                  {{ u.display_name || 'Geen naam' }}
+                </p>
+                <p class="text-xs text-gray-500 truncate">
+                  {{ u.id }}
+                </p>
+                <p v-if="u.communication_preference" class="text-xs text-gray-400">
+                  Voorkeur: {{ u.communication_preference }}
+                </p>
+              </div>
+            </div>
+            <div class="flex flex-col items-end gap-1 shrink-0 ml-4">
+              <div v-if="u.households && u.households.length > 0" class="flex flex-wrap gap-1 justify-end">
+                <span
+                  v-for="h in u.households"
+                  :key="h.id"
+                  class="px-2 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-700 rounded-full"
+                >
+                  {{ h.name }}
+                  <span class="text-emerald-500 ml-1">({{ h.role }})</span>
+                </span>
+              </div>
+              <span v-else class="text-xs text-gray-400">Geen huishouden</span>
+              <span class="text-xs text-gray-400">
+                Aangemeld: {{ formatDateTime(u.created_at) }}
+              </span>
             </div>
           </div>
         </div>

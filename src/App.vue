@@ -1,7 +1,7 @@
 <script setup>
 import { RouterView, RouterLink, useRoute, useRouter } from 'vue-router'
 import { computed, ref, onMounted, watch } from 'vue'
-import { supabase, signOut } from './services/supabase'
+import { supabase, signOut, loadUserProfile, userState, switchHousehold, setGlobalAdminEmail, isGlobalAdmin } from './services/supabase'
 import Logo from './components/Logo.vue'
 
 const route = useRoute()
@@ -22,11 +22,18 @@ const isActive = (path) => {
 }
 
 const isLoginPage = computed(() => route.path === '/login')
+const isInvitationPage = computed(() => route.path.startsWith('/uitnodiging'))
 
 const userInitials = computed(() => {
+  if (userState.profile?.display_name) {
+    return userState.profile.display_name.substring(0, 2).toUpperCase()
+  }
   if (!user.value?.email) return 'GT'
   return user.value.email.substring(0, 2).toUpperCase()
 })
+
+const showHouseholdSwitcher = computed(() => userState.households.length > 1)
+const showSuperAdminSwitcher = computed(() => isGlobalAdmin() && userState.households.length > 1)
 
 // Close mobile menu when route changes
 watch(() => route.path, () => {
@@ -41,6 +48,11 @@ function closeMobileMenu() {
   isMobileMenuOpen.value = false
 }
 
+async function handleSwitchHousehold(householdId) {
+  await switchHousehold(householdId)
+  window.location.reload()
+}
+
 async function handleLogout() {
   isMobileMenuOpen.value = false
   await signOut()
@@ -51,15 +63,22 @@ onMounted(async () => {
   const { data: { session } } = await supabase.auth.getSession()
   user.value = session?.user || null
 
-  supabase.auth.onAuthStateChange((event, session) => {
+  if (session?.user) {
+    await loadUserProfile()
+  }
+
+  supabase.auth.onAuthStateChange(async (event, session) => {
     user.value = session?.user || null
+    if (session?.user && !userState.loaded) {
+      await loadUserProfile()
+    }
   })
 })
 </script>
 
 <template>
-  <!-- Login page: no sidebar -->
-  <RouterView v-if="isLoginPage" />
+  <!-- Login page or invitation: no sidebar -->
+  <RouterView v-if="isLoginPage || isInvitationPage" />
 
   <!-- App with sidebar -->
   <div v-else class="h-screen bg-gray-50 flex flex-col md:flex-row overflow-hidden">
@@ -125,6 +144,30 @@ onMounted(async () => {
           </button>
         </div>
 
+        <!-- Super Admin Switcher (Mobile) -->
+        <div v-if="showSuperAdminSwitcher" class="px-4 py-3 border-b border-gray-200">
+          <div class="flex items-center gap-2 mb-3">
+            <span class="px-2 py-0.5 text-xs font-bold bg-purple-100 text-purple-700 rounded-full">Super Admin</span>
+          </div>
+          <div class="space-y-1.5">
+            <button
+              v-for="h in userState.households"
+              :key="h.id"
+              @click="handleSwitchHousehold(h.id)"
+              :class="[
+                'w-full text-left px-3 py-2 text-sm rounded-lg transition-colors',
+                h.id === userState.currentHousehold?.id
+                  ? 'bg-purple-100 text-purple-800 font-medium'
+                  : 'text-gray-700 hover:bg-purple-50'
+              ]"
+            >
+              <span v-if="h.id !== userState.currentHousehold?.id">Bekijk huis als </span>
+              <span class="font-medium">{{ h.name }}</span>
+              <span v-if="h.id === userState.currentHousehold?.id" class="text-purple-500 text-xs ml-1">(actief)</span>
+            </button>
+          </div>
+        </div>
+
         <!-- Mobile Navigation -->
         <nav class="flex-1 py-4">
           <RouterLink
@@ -181,6 +224,30 @@ onMounted(async () => {
       <!-- Logo -->
       <div class="h-16 flex items-center px-6 border-b border-gray-200">
         <Logo size="md" />
+      </div>
+
+      <!-- Super Admin Switcher (Desktop) -->
+      <div v-if="showSuperAdminSwitcher" class="px-4 py-3 border-b border-gray-200 bg-purple-50/50">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="px-2 py-0.5 text-xs font-bold bg-purple-100 text-purple-700 rounded-full">Super Admin</span>
+        </div>
+        <div class="space-y-1">
+          <button
+            v-for="h in userState.households"
+            :key="h.id"
+            @click="handleSwitchHousehold(h.id)"
+            :class="[
+              'w-full text-left px-3 py-1.5 text-sm rounded-lg transition-colors',
+              h.id === userState.currentHousehold?.id
+                ? 'bg-purple-100 text-purple-800 font-medium'
+                : 'text-gray-700 hover:bg-purple-50'
+            ]"
+          >
+            <span v-if="h.id !== userState.currentHousehold?.id">Bekijk huis als </span>
+            <span class="font-medium">{{ h.name }}</span>
+            <span v-if="h.id === userState.currentHousehold?.id" class="text-purple-500 text-xs ml-1">(actief)</span>
+          </button>
+        </div>
       </div>
 
       <!-- Navigation -->

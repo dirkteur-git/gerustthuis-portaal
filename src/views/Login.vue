@@ -1,10 +1,12 @@
 <script setup>
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { supabase } from '../services/supabase'
 import Logo from '../components/Logo.vue'
 
 const router = useRouter()
+const route = useRoute()
+const redirectUrl = route.query.redirect || '/'
 const email = ref('')
 const password = ref('')
 const confirmPassword = ref('')
@@ -31,7 +33,7 @@ async function handleLogin() {
     }
 
     if (data.user) {
-      router.push('/')
+      router.push(redirectUrl)
     }
   } catch (e) {
     error.value = 'Er ging iets mis. Probeer het opnieuw.'
@@ -75,7 +77,7 @@ async function handleRegister() {
         error.value = 'Dit e-mailadres is al geregistreerd'
       } else if (data.session) {
         // Direct ingelogd (geen email confirmatie nodig)
-        router.push('/')
+        router.push(redirectUrl)
       } else {
         // Email confirmatie verstuurd
         success.value = 'Account aangemaakt! Check je e-mail om je account te bevestigen.'

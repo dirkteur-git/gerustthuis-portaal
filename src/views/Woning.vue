@@ -1,9 +1,10 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { supabase } from '../services/supabase'
+import { supabase, getHueConfig } from '../services/supabase'
 
 // Data
 const loading = ref(true)
+const hasConfig = ref(true)
 const rooms = ref([])
 const deviceCounts = ref({})
 const activityData = ref({})
@@ -178,6 +179,11 @@ function handleSparklineLeave() {
 
 onMounted(async () => {
   try {
+    const config = await getHueConfig()
+    if (!config) {
+      hasConfig.value = false
+      return
+    }
     await Promise.all([
       loadRooms(),
       loadDeviceCounts(),
@@ -201,6 +207,23 @@ onMounted(async () => {
     <div v-if="loading" class="bg-white rounded-lg border border-gray-200 p-12 text-center">
       <div class="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full mx-auto mb-4"></div>
       <p class="text-gray-500">Kamers laden...</p>
+    </div>
+
+    <!-- No Hue config -->
+    <div v-else-if="!hasConfig" class="bg-white rounded-lg border border-gray-200 p-12 text-center">
+      <div class="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+        <svg class="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
+      </div>
+      <h2 class="text-lg font-semibold text-gray-900 mb-2">Verbind je Hue Bridge</h2>
+      <p class="text-gray-500 mb-4">Koppel eerst je Philips Hue Bridge om kamers en sensoren te zien.</p>
+      <router-link
+        to="/instellingen"
+        class="inline-block px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors"
+      >
+        Naar Instellingen
+      </router-link>
     </div>
 
     <!-- Empty state -->
