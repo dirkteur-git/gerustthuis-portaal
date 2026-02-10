@@ -56,6 +56,10 @@ onMounted(async () => {
     const result = await response.json()
 
     if (!response.ok) {
+      // Check if it's a bridge link failure (tokens saved but bridge not linked)
+      if (result.error === 'bridge_link_failed') {
+        throw new Error(result.message || 'Bridge koppeling mislukt. Probeer opnieuw.')
+      }
       throw new Error(result.error || 'Token exchange failed')
     }
 
