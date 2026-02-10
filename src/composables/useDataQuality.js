@@ -178,3 +178,57 @@ export function stddev(arr) {
   const squareDiffs = arr.map(v => Math.pow(v - mean, 2))
   return Math.sqrt(avg(squareDiffs)) || 1
 }
+
+/**
+ * Sum events from events_per_hour array for a specific hour range
+ *
+ * @param {number[]} eventsPerHour - Array of 24 hourly event counts
+ * @param {number} startHour - Start hour (inclusive, 0-23)
+ * @param {number} endHour - End hour (inclusive, 0-23)
+ * @returns {number} - Sum of events in the range
+ */
+export function sumEventsInRange(eventsPerHour, startHour, endHour) {
+  if (!eventsPerHour || eventsPerHour.length < 24) return 0
+  let sum = 0
+  for (let h = startHour; h <= endHour; h++) {
+    sum += eventsPerHour[h] || 0
+  }
+  return sum
+}
+
+/**
+ * Cosine similarity between two numeric arrays
+ * Returns 0-1 where 1 means identical pattern
+ *
+ * @param {number[]} a - First array
+ * @param {number[]} b - Second array (same length)
+ * @returns {number} - Cosine similarity (0-1)
+ */
+export function cosineSimilarity(a, b) {
+  if (!a || !b || a.length !== b.length) return 0
+  let dotProduct = 0
+  let normA = 0
+  let normB = 0
+  for (let i = 0; i < a.length; i++) {
+    dotProduct += (a[i] || 0) * (b[i] || 0)
+    normA += (a[i] || 0) ** 2
+    normB += (b[i] || 0) ** 2
+  }
+  if (normA === 0 || normB === 0) return 0
+  return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB))
+}
+
+/**
+ * Compute awake duration in minutes from first and last activity times
+ *
+ * @param {string} firstActivity - TIME string (HH:MM or HH:MM:SS)
+ * @param {string} lastActivity - TIME string
+ * @returns {number|null} - Duration in minutes, or null if inputs invalid
+ */
+export function awakeDuration(firstActivity, lastActivity) {
+  if (!firstActivity || !lastActivity) return null
+  const first = timeToMinutes(firstActivity)
+  const last = timeToMinutes(lastActivity)
+  if (first === 0 && last === 0) return null
+  return Math.max(0, last - first)
+}

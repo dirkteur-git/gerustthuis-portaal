@@ -6,7 +6,12 @@ import {
   calculateDayStart,
   formatMinutesToTime,
   toLocalDateKey,
-  timeToMinutes
+  timeToMinutes,
+  avg,
+  stddev,
+  awakeDuration,
+  getDayEventsUntilHour,
+  getActiveDayHoursUntilHour
 } from '../composables/useDataQuality'
 
 // Data
@@ -16,12 +21,28 @@ const heatmapData = ref([])
 const recentActivity = ref([])
 const todayStats = ref(null)
 const averageStats = ref(null)
+const historicalDays = ref([]) // raw baseline data for z-score calculations
 const offlineSensors = ref([])
 
 // Heatmap hover state
 const heatmapHover = ref(null) // { day, hour, count, x, y }
 
-// Computed: Status bepaling (Wisdom niveau)
+// === Z-SCORE HELPERS ===
+
+function calcZScore(value, mean, std) {
+  if (value === null || mean === null || std === null || std === 0) return 0
+  return (value - mean) / std
+}
+
+function zSeverity(z) {
+  const absZ = Math.abs(z)
+  if (absZ >= 2) return 'high'
+  if (absZ >= 1) return 'medium'
+  return 'low'
+}
+
+// === STATUS BEPALING (rolling: vergelijkt alleen tot huidig uur) ===
+
 const statusInfo = computed(() => {
   // Minimaal MINIMUM_DAYS_REQUIRED dagen data nodig voor betrouwbare meting
   if (!todayStats.value || !averageStats.value || averageStats.value.daysCount < MINIMUM_DAYS_REQUIRED) {
@@ -32,57 +53,134 @@ const statusInfo = computed(() => {
       title: 'We leren nog',
       subtitle: daysCount > 0
         ? `${daysCount} dagen beschikbaar, minimaal ${MINIMUM_DAYS_REQUIRED} nodig`
-        : 'Nog geen data beschikbaar'
+        : 'Nog geen data beschikbaar',
+      deviations: []
     }
   }
 
   const today = todayStats.value
-  const avg = averageStats.value
+  const stats = averageStats.value
+  const ch = new Date().getHours() // huidig uur
 
-  // Geen activiteit vandaag terwijl we wel activiteit verwachten
-  if (today.totalEvents === 0 && avg.totalEvents > 10) {
+  // Geen activiteit vandaag terwijl we wel activiteit verwachten (rolling check)
+  const expectedEventsUntilNow = historicalDays.value.length > 0
+    ? avg(historicalDays.value.map(d => getDayEventsUntilHour(d.events_per_hour, ch)))
+    : stats.totalEvents
+  if (today.totalEvents === 0 && expectedEventsUntilNow > 5) {
     return {
       level: 'concern',
-      color: 'amber',
-      title: 'Erg rustig',
-      subtitle: 'Nog geen activiteit vandaag, misschien even checken'
+      color: 'red',
+      title: 'Geen activiteit',
+      subtitle: 'Nog geen activiteit vandaag, misschien even checken',
+      deviations: []
     }
   }
 
-  // Veel minder dan normaal (< 50% van gemiddelde)
-  const ratio = today.totalEvents / Math.max(avg.totalEvents, 1)
-  if (ratio < 0.5 && today.totalEvents < 20) {
+  // Bereken z-scores met rolling vergelijking
+  const hist = historicalDays.value
+  const metrics = []
+
+  // 1. Activiteit tot nu (rolling)
+  const todayEventsUntilNow = getDayEventsUntilHour(today.eventsPerHour, ch)
+  const histEventsUntilNow = hist.map(d => getDayEventsUntilHour(d.events_per_hour, ch)).filter(v => v != null)
+  if (histEventsUntilNow.length >= 2) {
+    const z = calcZScore(todayEventsUntilNow, avg(histEventsUntilNow), stddev(histEventsUntilNow))
+    if (Math.abs(z) >= 1) {
+      const avgVal = Math.round(avg(histEventsUntilNow))
+      metrics.push({
+        label: 'Activiteit',
+        z,
+        severity: zSeverity(z),
+        text: `${todayEventsUntilNow} events (normaal ${avgVal} om ${String(ch).padStart(2, '0')}:00)`
+      })
+    }
+  }
+
+  // 2. Dagstart / opgestaan (tijdstip-metric, altijd vergelijkbaar)
+  const todayWake = calculateDayStart(today.eventsPerHour)
+  const histWake = hist.map(d => calculateDayStart(d.events_per_hour)).filter(v => v !== null)
+  if (todayWake !== null && histWake.length >= 2) {
+    const z = calcZScore(todayWake, avg(histWake), stddev(histWake))
+    if (Math.abs(z) >= 1) {
+      const avgVal = Math.round(avg(histWake))
+      metrics.push({
+        label: 'Opgestaan',
+        z,
+        severity: zSeverity(z),
+        text: `${formatMinutesToTime(todayWake)} (normaal ${formatMinutesToTime(avgVal)})`
+      })
+    }
+  }
+
+  // 3. Actieve uren tot nu (rolling)
+  const todayActiveUntilNow = getActiveDayHoursUntilHour(today.eventsPerHour, ch)
+  const histActiveUntilNow = hist.map(d => getActiveDayHoursUntilHour(d.events_per_hour, ch)).filter(v => v != null)
+  if (histActiveUntilNow.length >= 2) {
+    const z = calcZScore(todayActiveUntilNow, avg(histActiveUntilNow), stddev(histActiveUntilNow))
+    if (Math.abs(z) >= 1) {
+      const avgVal = avg(histActiveUntilNow).toFixed(1)
+      metrics.push({
+        label: 'Actieve uren',
+        z,
+        severity: zSeverity(z),
+        text: `${todayActiveUntilNow}u (normaal ${avgVal}u om ${String(ch).padStart(2, '0')}:00)`
+      })
+    }
+  }
+
+  // 4. Nacht events (00-06, altijd al voorbij)
+  const histNight = hist.map(d => d.night_events).filter(v => v != null)
+  if (today.nightEvents != null && histNight.length >= 2) {
+    const z = calcZScore(today.nightEvents, avg(histNight), stddev(histNight))
+    if (Math.abs(z) >= 1) {
+      const avgVal = Math.round(avg(histNight))
+      metrics.push({
+        label: 'Nachtactiviteit',
+        z,
+        severity: zSeverity(z),
+        text: `${today.nightEvents} events (normaal ${avgVal})`
+      })
+    }
+  }
+
+  // Sorteer op |z| aflopend, max 3
+  metrics.sort((a, b) => Math.abs(b.z) - Math.abs(a.z))
+  const topDeviations = metrics.slice(0, 3)
+
+  // Bepaal overall status op basis van hoogste |z|
+  const maxZ = metrics.length > 0 ? Math.abs(metrics[0].z) : 0
+
+  if (maxZ >= 2) {
+    return {
+      level: 'alert',
+      color: 'red',
+      title: 'Sterk afwijkend',
+      subtitle: 'Meerdere patronen wijken af van normaal',
+      deviations: topDeviations
+    }
+  }
+
+  if (maxZ >= 1) {
     return {
       level: 'attention',
       color: 'amber',
-      title: 'Rustige dag',
-      subtitle: 'Minder activiteit dan normaal'
+      title: 'Let even op',
+      subtitle: 'Enkele patronen wijken af van normaal',
+      deviations: topDeviations
     }
   }
 
-  // Meer dan normaal (> 150% van gemiddelde)
-  if (ratio > 1.5) {
-    return {
-      level: 'active',
-      color: 'green',
-      title: 'Actieve dag',
-      subtitle: 'Meer activiteit dan normaal'
-    }
-  }
-
-  // Normaal
   return {
     level: 'normal',
     color: 'green',
     title: 'Normale dag',
-    subtitle: 'Vergelijkbaar met vorige week'
+    subtitle: 'Vergelijkbaar met vorige week',
+    deviations: []
   }
 })
 
-// Computed: Eerste activiteit / dagstart info (Information + Knowledge)
-// Gebruik dagstart cluster detectie ipv eerste event
+// Computed: Eerste activiteit / dagstart info
 const firstActivityInfo = computed(() => {
-  // Bereken dagstart uit events_per_hour
   const dayStartMinutes = todayStats.value?.eventsPerHour
     ? calculateDayStart(todayStats.value.eventsPerHour)
     : null
@@ -102,19 +200,22 @@ const firstActivityInfo = computed(() => {
   }
 
   const dayStartTime = formatMinutesToTime(dayStartMinutes)
-  const avgDayStartMinutes = averageStats.value?.avgDayStart
-    ? timeToMinutes(averageStats.value.avgDayStart)
-    : null
+
+  // Bereken verschil met gemiddelde dagstart
+  const hist = historicalDays.value
+  const histWake = hist.map(d => calculateDayStart(d.events_per_hour)).filter(v => v !== null)
 
   let subtitle = ''
-  if (avgDayStartMinutes !== null) {
-    const diffMinutes = dayStartMinutes - avgDayStartMinutes
-    if (Math.abs(diffMinutes) < 30) {
-      subtitle = 'Normaal voor haar'
-    } else if (diffMinutes > 30) {
-      subtitle = 'Later dan normaal'
+  if (histWake.length >= 2) {
+    const avgWake = Math.round(avg(histWake))
+    const diffMinutes = dayStartMinutes - avgWake
+    if (Math.abs(diffMinutes) < 15) {
+      subtitle = 'Normaal tijdstip'
     } else {
-      subtitle = 'Vroeger dan normaal'
+      const hours = Math.floor(Math.abs(diffMinutes) / 60)
+      const mins = Math.abs(diffMinutes) % 60
+      const timeStr = hours > 0 ? `${hours}u${mins > 0 ? mins + 'm' : ''}` : `${mins} min`
+      subtitle = `${timeStr} ${diffMinutes > 0 ? 'later' : 'eerder'} dan normaal`
     }
   }
 
@@ -124,10 +225,8 @@ const firstActivityInfo = computed(() => {
   }
 })
 
-// Computed: Laatste activiteit info (Information + Knowledge)
-// Gebruik recentActivity voor real-time data, niet daily_activity_stats
+// Computed: Laatste activiteit info
 const lastActivityInfo = computed(() => {
-  // Gebruik de meest recente event uit recentActivity (die is real-time)
   const lastEvent = recentActivity.value[0]
 
   if (!lastEvent) {
@@ -149,7 +248,7 @@ const lastActivityInfo = computed(() => {
     timeAgo = `${diffMinutes} ${diffMinutes === 1 ? 'minuut' : 'minuten'} geleden`
   } else {
     const diffHours = Math.floor(diffMinutes / 60)
-    timeAgo = `${diffHours} ${diffHours === 1 ? 'uur' : 'uur'} geleden`
+    timeAgo = `${diffHours} uur geleden`
   }
 
   const lastTime = `${String(lastDate.getHours()).padStart(2, '0')}:${String(lastDate.getMinutes()).padStart(2, '0')}`
@@ -169,16 +268,12 @@ const groupedRecentActivity = computed(() => {
   const result = []
 
   for (const activity of recentActivity.value) {
-    // Skip verborgen kamers
     if (hiddenRooms.includes(activity.room_name)) continue
-
-    // Skip als we deze kamer al hebben gezien
     if (seen.has(activity.room_name)) continue
 
     seen.add(activity.room_name)
     result.push(activity)
 
-    // Max 5 unieke kamers
     if (result.length >= 5) break
   }
 
@@ -199,9 +294,8 @@ const maxCount = computed(() => {
 // Methods
 function formatTime(time) {
   if (!time) return ''
-  // time kan "HH:MM:SS" of Date object zijn
   if (typeof time === 'string') {
-    return time.slice(0, 5) // "HH:MM"
+    return time.slice(0, 5)
   }
   return `${String(time.getHours()).padStart(2, '0')}:${String(time.getMinutes()).padStart(2, '0')}`
 }
@@ -235,8 +329,6 @@ function getActivityIcon(deviceType) {
   }
 }
 
-
-// Format datum voor tooltip: "Do 30 jan, 14:00"
 function formatHoverDate(dateStr, hourNum) {
   const d = new Date(dateStr)
   const days = ['Zo', 'Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za']
@@ -246,12 +338,10 @@ function formatHoverDate(dateStr, hourNum) {
 
 // Heatmap hover handlers
 function handleHeatmapHover(event, day, hour) {
-  // Sorteer kamers op activiteit (hoogste eerst)
   const roomEntries = Object.entries(hour.rooms || {})
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 5) // Max 5 kamers tonen
+    .slice(0, 5)
 
-  // 6 stappen: 0=0%, 1-2=17%, 3-4=33%, 5-6=50%, 7-8=67%, 9-10=83%, 11+=100%
   function getBarWidth(count) {
     if (count === 0) return 0
     if (count <= 2) return 17
@@ -262,17 +352,14 @@ function handleHeatmapHover(event, day, hour) {
     return 100
   }
 
-  // Get position from touch or mouse event
   const clientX = event.touches ? event.touches[0].clientX : event.clientX
   const clientY = event.touches ? event.touches[0].clientY : event.clientY
 
-  // Calculate position with bounds checking
   const tooltipWidth = 200
   const tooltipHeight = 120
   let x = clientX + 12
   let y = clientY - 10
 
-  // Keep tooltip within viewport
   if (x + tooltipWidth > window.innerWidth) {
     x = clientX - tooltipWidth - 12
   }
@@ -301,7 +388,6 @@ function handleHeatmapLeave() {
 async function loadTodayStats() {
   const today = toLocalDateKey(new Date())
 
-  // Haal vandaag's stats uit daily_activity_stats
   const { data, error } = await supabase
     .from('daily_activity_stats')
     .select('*')
@@ -313,7 +399,6 @@ async function loadTodayStats() {
   }
 
   if (data) {
-    // Haal ook de laatste event timestamp
     const { data: lastEvent } = await supabase
       .from('activity_events')
       .select('recorded_at')
@@ -329,6 +414,8 @@ async function loadTodayStats() {
       lastTimestamp: lastEvent?.recorded_at,
       activeHours: data.active_hours || 0,
       roomsActive: data.rooms_active || 0,
+      longestGapMinutes: data.longest_gap_minutes || 0,
+      nightEvents: data.night_events || 0,
       eventsPerHour: data.events_per_hour || Array(24).fill(0)
     }
   } else {
@@ -343,7 +430,6 @@ async function loadTodayStats() {
       const firstEvent = new Date(events[0].recorded_at)
       const lastEvent = new Date(events[events.length - 1].recorded_at)
 
-      // Bouw events_per_hour array uit ruwe events
       const eventsPerHour = Array(24).fill(0)
       events.forEach(e => {
         const hour = new Date(e.recorded_at).getHours()
@@ -357,6 +443,8 @@ async function loadTodayStats() {
         lastTimestamp: events[events.length - 1].recorded_at,
         activeHours: 0,
         roomsActive: 0,
+        longestGapMinutes: 0,
+        nightEvents: 0,
         eventsPerHour
       }
     } else {
@@ -367,6 +455,8 @@ async function loadTodayStats() {
         lastTimestamp: null,
         activeHours: 0,
         roomsActive: 0,
+        longestGapMinutes: 0,
+        nightEvents: 0,
         eventsPerHour: Array(24).fill(0)
       }
     }
@@ -374,14 +464,13 @@ async function loadTodayStats() {
 }
 
 async function loadAverageStats() {
-  // Bereken gemiddelden van laatste 14 dagen (excl vandaag) - consistent met Patronen
   const today = new Date()
   const fourteenDaysAgo = new Date(today)
   fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14)
 
   const { data, error } = await supabase
     .from('daily_activity_stats')
-    .select('total_events, first_activity, last_activity, events_per_hour')
+    .select('*')
     .gte('date', toLocalDateKey(fourteenDaysAgo))
     .lt('date', toLocalDateKey(today))
 
@@ -391,15 +480,12 @@ async function loadAverageStats() {
   }
 
   if (data && data.length > 0) {
+    // Sla ruwe data op voor z-score berekeningen
+    historicalDays.value = data.filter(d => d.total_events > 0)
+
     const totalEvents = data.reduce((sum, d) => sum + (d.total_events || 0), 0) / data.length
 
-    // Gemiddelde eerste activiteit tijd (oude methode, voor fallback)
-    const firstTimes = data.filter(d => d.first_activity).map(d => timeToMinutes(d.first_activity))
-    const avgFirstMinutes = firstTimes.length > 0
-      ? firstTimes.reduce((a, b) => a + b, 0) / firstTimes.length
-      : null
-
-    // Gemiddelde dagstart uit events_per_hour (nieuwe methode)
+    // Gemiddelde dagstart uit events_per_hour
     const dayStarts = data
       .map(d => calculateDayStart(d.events_per_hour))
       .filter(v => v !== null)
@@ -409,14 +495,13 @@ async function loadAverageStats() {
 
     averageStats.value = {
       totalEvents: Math.round(totalEvents),
-      avgFirstActivity: formatMinutesToTime(avgFirstMinutes),
       avgDayStart: formatMinutesToTime(avgDayStartMinutes),
       daysCount: data.length
     }
   } else {
+    historicalDays.value = []
     averageStats.value = {
       totalEvents: 0,
-      avgFirstActivity: null,
       avgDayStart: null,
       daysCount: 0
     }
@@ -457,7 +542,6 @@ async function loadHeatmapData() {
     const day = dayMap.get(dateKey)
     if (day) {
       day.hours[hourOfDay].count += row.total_events || 0
-      // Track per room
       if (row.room_name) {
         day.hours[hourOfDay].rooms[row.room_name] =
           (day.hours[hourOfDay].rooms[row.room_name] || 0) + (row.total_events || 0)
@@ -471,7 +555,6 @@ async function loadHeatmapData() {
 }
 
 async function loadRecentActivity() {
-  // Haal meer events op zodat we genoeg unieke kamers hebben
   const { data, error } = await supabase
     .from('activity_events')
     .select('room_name, device_type, recorded_at')
@@ -562,7 +645,7 @@ onUnmounted(() => {
     </div>
 
     <template v-else>
-      <!-- Status Banner (Wisdom) -->
+      <!-- Status Banner -->
       <div
         class="rounded-lg p-5"
         :class="{
@@ -575,7 +658,7 @@ onUnmounted(() => {
         <div class="flex items-center gap-3">
           <!-- Status indicator -->
           <div
-            class="w-3 h-3 rounded-full"
+            class="w-3 h-3 rounded-full flex-shrink-0"
             :class="{
               'bg-emerald-500': statusInfo.color === 'green',
               'bg-amber-500': statusInfo.color === 'amber',
@@ -583,7 +666,7 @@ onUnmounted(() => {
               'bg-gray-400': statusInfo.color === 'gray'
             }"
           ></div>
-          <div>
+          <div class="flex-1">
             <h1
               class="text-lg font-semibold"
               :class="{
@@ -608,12 +691,49 @@ onUnmounted(() => {
             </p>
           </div>
         </div>
+
+        <!-- Afwijkende metrics -->
+        <div v-if="statusInfo.deviations.length > 0" class="mt-3 space-y-1.5 ml-6">
+          <div
+            v-for="dev in statusInfo.deviations"
+            :key="dev.label"
+            class="flex items-center gap-2"
+          >
+            <span
+              class="text-xs font-medium px-1.5 py-0.5 rounded"
+              :class="{
+                'bg-amber-200 text-amber-800': dev.severity === 'medium',
+                'bg-red-200 text-red-800': dev.severity === 'high'
+              }"
+            >
+              {{ dev.label }}
+            </span>
+            <span
+              class="text-sm"
+              :class="{
+                'text-amber-700': statusInfo.color === 'amber',
+                'text-red-700': statusInfo.color === 'red'
+              }"
+            >
+              {{ dev.text }}
+            </span>
+          </div>
+        </div>
       </div>
 
-      <!-- KPI Card: Laatste activiteit -->
-      <div class="bg-white border border-gray-200 rounded-lg p-5">
-        <p class="text-lg font-semibold text-gray-900">{{ lastActivityInfo.title }}</p>
-        <p class="text-sm text-gray-500 mt-1">{{ lastActivityInfo.subtitle }}</p>
+      <!-- KPI Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Dagstart -->
+        <div class="bg-white border border-gray-200 rounded-lg p-5">
+          <p class="text-lg font-semibold text-gray-900">{{ firstActivityInfo.title }}</p>
+          <p class="text-sm text-gray-500 mt-1">{{ firstActivityInfo.subtitle }}</p>
+        </div>
+
+        <!-- Laatste activiteit -->
+        <div class="bg-white border border-gray-200 rounded-lg p-5">
+          <p class="text-lg font-semibold text-gray-900">{{ lastActivityInfo.title }}</p>
+          <p class="text-sm text-gray-500 mt-1">{{ lastActivityInfo.subtitle }}</p>
+        </div>
       </div>
 
       <!-- Heatmap (Information - visueel) -->
@@ -627,7 +747,7 @@ onUnmounted(() => {
           Nog geen data beschikbaar
         </div>
         <div v-else>
-          <!-- Heatmap Grid - geen uur labels -->
+          <!-- Heatmap Grid -->
           <div class="space-y-1">
             <div v-for="day in heatmapData" :key="day.date" class="flex items-center gap-2">
               <div class="w-8 text-xs text-gray-400 text-right">
@@ -650,7 +770,7 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <!-- Legenda zonder getallen -->
+          <!-- Legenda -->
           <div class="flex justify-end items-center gap-1.5 mt-4 text-xs text-gray-400">
             <span>Rustig</span>
             <div class="flex gap-0.5">
@@ -665,7 +785,7 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- Recente activiteit (Information) -->
+      <!-- Recente activiteit -->
       <div class="bg-white border border-gray-200 rounded-lg p-5">
         <h2 class="text-base font-semibold text-gray-900 mb-4">Recente activiteit</h2>
 

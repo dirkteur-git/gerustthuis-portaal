@@ -4,7 +4,10 @@ import { supabase } from '../services/supabase'
 import {
   MINIMUM_DAYS_REQUIRED,
   toLocalDateKey,
-  timeToMinutes
+  timeToMinutes,
+  sumEventsInRange,
+  cosineSimilarity,
+  awakeDuration
 } from '../composables/useDataQuality'
 
 // State
@@ -14,6 +17,9 @@ const selectedDate = ref(toLocalDateKey(new Date()))
 const dayStats = ref(null)
 const baselineStats = ref(null)
 const dataQuality = ref(null)
+const roomHourlyData = ref(null)
+const baselineRoomByDate = ref({})
+const baselineAvgHourlyPattern = ref(null)
 
 function formatDateDisplay(dateStr) {
   const d = new Date(dateStr)
@@ -40,15 +46,86 @@ function nextDay() {
 
 const isToday = computed(() => selectedDate.value === toLocalDateKey(new Date()))
 
-// Anomaly score features
-const features = [
-  { key: 'total_events', label: 'Totaal events', unit: '' },
-  { key: 'first_activity', label: 'Eerste activiteit', unit: 'min', isTime: true },
-  { key: 'last_activity', label: 'Laatste activiteit', unit: 'min', isTime: true },
-  { key: 'active_hours', label: 'Actieve uren', unit: 'u' },
-  { key: 'longest_gap_minutes', label: 'Langste gap', unit: 'min' },
-  { key: 'night_events', label: 'Nacht events', unit: '' },
+// ============================================================
+// Feature definities: 18 features in 6 groepen
+// ============================================================
+
+const featureGroups = [
+  {
+    id: 'timing',
+    label: 'Tijdstip',
+    features: [
+      { key: 'first_activity', label: 'Eerste activiteit', unit: 'min', isTime: true, weight: 1.0 },
+      { key: 'last_activity', label: 'Laatste activiteit', unit: 'min', isTime: true, weight: 1.0 },
+      { key: 'awake_duration', label: 'Wakkere duur', unit: 'min', isDerived: true, weight: 0.8 },
+    ]
+  },
+  {
+    id: 'volume',
+    label: 'Volume',
+    features: [
+      { key: 'total_events', label: 'Totaal events', unit: '', weight: 1.0 },
+      { key: 'active_hours', label: 'Actieve uren', unit: 'u', weight: 1.0 },
+      { key: 'morning_events', label: 'Ochtend (06-12)', unit: '', isDerived: true, weight: 0.8 },
+      { key: 'afternoon_events', label: 'Middag (12-18)', unit: '', isDerived: true, weight: 0.8 },
+      { key: 'evening_events', label: 'Avond (18-23)', unit: '', isDerived: true, weight: 0.8 },
+    ]
+  },
+  {
+    id: 'gaps',
+    label: 'Rust & nacht',
+    features: [
+      { key: 'longest_gap_minutes', label: 'Langste gap', unit: 'min', weight: 1.2 },
+      { key: 'night_events', label: 'Nacht events', unit: '', weight: 1.0 },
+      { key: 'night_active_hours', label: 'Nacht actieve uren', unit: 'u', weight: 0.8 },
+    ]
+  },
+  {
+    id: 'rooms',
+    label: 'Ruimte',
+    features: [
+      { key: 'rooms_active', label: 'Actieve kamers', unit: '', weight: 0.8 },
+      { key: 'room_ratio', label: 'Kamer ratio', unit: '', isDerived: true, weight: 0.6, isRoomFeature: true },
+      { key: 'main_room_pct', label: 'Hoofdkamer %', unit: '%', isRoomData: true, weight: 0.6, isRoomFeature: true },
+    ]
+  },
+  {
+    id: 'devices',
+    label: 'Sensor type',
+    features: [
+      { key: 'motion_events', label: 'Beweging events', unit: '', weight: 0.8 },
+      { key: 'door_events', label: 'Deur events', unit: '', weight: 0.8 },
+    ]
+  },
+  {
+    id: 'patterns',
+    label: 'Patroon',
+    features: [
+      { key: 'transition_count', label: 'Kamerwisselingen', unit: '', isRoomData: true, weight: 0.6, isRoomFeature: true },
+      { key: 'activity_regularity', label: 'Regelmaat score', unit: '', isDerived: true, weight: 0.6 },
+    ]
+  },
 ]
+
+// Flat array van alle features
+const allFeatures = featureGroups.flatMap(g => g.features)
+
+// Actieve features (kamer-features alleen tonen als rooms_available > 1)
+const activeFeatures = computed(() => {
+  const roomsAvailable = dayStats.value?.rooms_available || 0
+  return allFeatures.filter(feature => {
+    if (feature.isRoomFeature) return roomsAvailable > 1
+    return true
+  })
+})
+
+// Actieve feature groups (verberg lege groepen)
+const activeFeatureGroups = computed(() => {
+  return featureGroups.map(group => ({
+    ...group,
+    features: group.features.filter(f => activeFeatures.value.includes(f))
+  })).filter(group => group.features.length > 0)
+})
 
 function minutesToTime(minutes) {
   if (minutes === null || minutes === undefined) return '-'
@@ -63,30 +140,210 @@ function calculateZScore(value, mean, stddev) {
   return (value - mean) / stddev
 }
 
-// Score breakdown computed
+// ============================================================
+// Feature value berekening
+// ============================================================
+
+// Bereken vandaag-waarde voor een feature
+function getTodayValue(feature) {
+  if (!dayStats.value) return null
+  const ds = dayStats.value
+
+  switch (feature.key) {
+    case 'first_activity':
+    case 'last_activity':
+      return timeToMinutes(ds[feature.key])
+
+    case 'total_events':
+    case 'active_hours':
+    case 'longest_gap_minutes':
+    case 'night_events':
+    case 'night_active_hours':
+    case 'rooms_active':
+    case 'motion_events':
+    case 'door_events':
+      return ds[feature.key] ?? null
+
+    case 'morning_events':
+      return sumEventsInRange(ds.events_per_hour, 6, 11)
+    case 'afternoon_events':
+      return sumEventsInRange(ds.events_per_hour, 12, 17)
+    case 'evening_events':
+      return sumEventsInRange(ds.events_per_hour, 18, 22)
+
+    case 'awake_duration':
+      return awakeDuration(ds.first_activity, ds.last_activity)
+
+    case 'room_ratio':
+      if (!ds.rooms_available || ds.rooms_available === 0) return null
+      return ds.rooms_active / ds.rooms_available
+
+    case 'main_room_pct':
+      return computeMainRoomPct(roomHourlyData.value)
+
+    case 'transition_count':
+      return computeTransitionCount(roomHourlyData.value)
+
+    case 'activity_regularity':
+      if (!ds.events_per_hour || !baselineAvgHourlyPattern.value) return null
+      return cosineSimilarity(ds.events_per_hour, baselineAvgHourlyPattern.value)
+
+    default:
+      return null
+  }
+}
+
+// Bereken baseline-waarde voor een feature uit een historische dag
+function getHistoricalValue(feature, day, roomData) {
+  switch (feature.key) {
+    case 'first_activity':
+    case 'last_activity': {
+      const v = timeToMinutes(day[feature.key])
+      return (v === 0 && !day[feature.key]) ? null : v
+    }
+
+    case 'total_events':
+    case 'active_hours':
+    case 'longest_gap_minutes':
+    case 'night_events':
+    case 'night_active_hours':
+    case 'rooms_active':
+    case 'motion_events':
+    case 'door_events':
+      return day[feature.key] ?? null
+
+    case 'morning_events':
+      return sumEventsInRange(day.events_per_hour, 6, 11)
+    case 'afternoon_events':
+      return sumEventsInRange(day.events_per_hour, 12, 17)
+    case 'evening_events':
+      return sumEventsInRange(day.events_per_hour, 18, 22)
+
+    case 'awake_duration':
+      return awakeDuration(day.first_activity, day.last_activity)
+
+    case 'room_ratio':
+      if (!day.rooms_available || day.rooms_available === 0) return null
+      return day.rooms_active / day.rooms_available
+
+    case 'main_room_pct':
+      return computeMainRoomPct(roomData || [])
+
+    case 'transition_count':
+      return computeTransitionCount(roomData || [])
+
+    case 'activity_regularity':
+      if (!day.events_per_hour || !baselineAvgHourlyPattern.value) return null
+      return cosineSimilarity(day.events_per_hour, baselineAvgHourlyPattern.value)
+
+    default:
+      return null
+  }
+}
+
+// ============================================================
+// Room-afgeleide features
+// ============================================================
+
+function computeMainRoomPct(roomData) {
+  if (!roomData || roomData.length === 0) return null
+  const roomTotals = {}
+  for (const row of roomData) {
+    roomTotals[row.room_name] = (roomTotals[row.room_name] || 0) + (row.total_events || 0)
+  }
+  const totals = Object.values(roomTotals)
+  if (totals.length === 0) return null
+  const maxRoom = Math.max(...totals)
+  const totalAll = totals.reduce((a, b) => a + b, 0)
+  if (totalAll === 0) return null
+  return Math.round((maxRoom / totalAll) * 100)
+}
+
+function computeTransitionCount(roomData) {
+  if (!roomData || roomData.length === 0) return null
+  const sorted = [...roomData].sort((a, b) =>
+    new Date(a.hour) - new Date(b.hour)
+  )
+
+  // Groepeer per uur
+  const hourGroups = {}
+  for (const row of sorted) {
+    const hourKey = row.hour
+    if (!hourGroups[hourKey]) hourGroups[hourKey] = []
+    hourGroups[hourKey].push(row)
+  }
+
+  // Voor elk uur: dominante kamer
+  const hourKeys = Object.keys(hourGroups).sort()
+  const dominantRooms = hourKeys.map(hk => {
+    const rows = hourGroups[hk]
+    let maxRoom = null
+    let maxEvents = 0
+    for (const r of rows) {
+      if ((r.total_events || 0) > maxEvents) {
+        maxEvents = r.total_events || 0
+        maxRoom = r.room_name
+      }
+    }
+    return maxRoom
+  }).filter(Boolean)
+
+  // Tel wisselingen
+  let transitions = 0
+  for (let i = 1; i < dominantRooms.length; i++) {
+    if (dominantRooms[i] !== dominantRooms[i - 1]) transitions++
+  }
+  return transitions
+}
+
+// ============================================================
+// Score berekening
+// ============================================================
+
 const scoreBreakdown = computed(() => {
   if (!dayStats.value || !baselineStats.value) return []
 
-  return features.map(feature => {
-    let todayValue = dayStats.value[feature.key]
-    let baselineValue = baselineStats.value[`avg_${feature.key}`]
-    let stddev = baselineStats.value[`std_${feature.key}`]
+  return activeFeatures.value.map(feature => {
+    const todayValue = getTodayValue(feature)
 
-    // Convert time fields to minutes
-    if (feature.isTime) {
-      todayValue = timeToMinutes(todayValue)
-      baselineValue = baselineStats.value[`avg_${feature.key}_minutes`]
-      stddev = baselineStats.value[`std_${feature.key}_minutes`]
-    }
+    const avgKey = feature.isTime ? `avg_${feature.key}_minutes` : `avg_${feature.key}`
+    const stdKey = feature.isTime ? `std_${feature.key}_minutes` : `std_${feature.key}`
+    const baselineValue = baselineStats.value[avgKey]
+    const stddevValue = baselineStats.value[stdKey]
 
-    const zScore = calculateZScore(todayValue, baselineValue, stddev)
+    const zScore = calculateZScore(todayValue, baselineValue, stddevValue)
     const absZ = Math.abs(zScore)
 
+    // Format display waarde
+    let displayValue
+    if (todayValue === null || todayValue === undefined) {
+      displayValue = '-'
+    } else if (feature.isTime) {
+      displayValue = minutesToTime(todayValue)
+    } else if (feature.key === 'room_ratio' || feature.key === 'activity_regularity') {
+      displayValue = todayValue.toFixed(2)
+    } else {
+      displayValue = todayValue
+    }
+
+    let displayBaseline
+    if (baselineValue === null || baselineValue === undefined) {
+      displayBaseline = '-'
+    } else if (feature.isTime) {
+      displayBaseline = minutesToTime(baselineValue)
+    } else if (feature.key === 'room_ratio' || feature.key === 'activity_regularity') {
+      displayBaseline = baselineValue.toFixed(2)
+    } else {
+      displayBaseline = baselineValue?.toFixed(1)
+    }
+
     return {
+      key: feature.key,
       label: feature.label,
-      todayValue: feature.isTime ? minutesToTime(todayValue) : (todayValue ?? '-'),
-      baselineValue: feature.isTime ? minutesToTime(baselineValue) : (baselineValue?.toFixed(1) ?? '-'),
-      stddev: stddev?.toFixed(2) ?? '-',
+      weight: feature.weight,
+      todayValue: displayValue,
+      baselineValue: displayBaseline,
+      stddev: stddevValue?.toFixed(2) ?? '-',
       zScore: zScore,
       zScoreDisplay: zScore.toFixed(2),
       severity: absZ > 2 ? 'high' : absZ > 1 ? 'medium' : 'low'
@@ -94,12 +351,41 @@ const scoreBreakdown = computed(() => {
   })
 })
 
-// Anomaly score (max absolute z-score, genormaliseerd naar 0-1)
+// Groepeer breakdown per groep voor template
+const groupedBreakdown = computed(() => {
+  const byKey = {}
+  for (const row of scoreBreakdown.value) {
+    byKey[row.key] = row
+  }
+  const result = {}
+  for (const group of activeFeatureGroups.value) {
+    result[group.id] = group.features
+      .map(f => byKey[f.key])
+      .filter(Boolean)
+  }
+  return result
+})
+
+// Anomaly score: gewogen combinatie van max en gemiddelde z-score
 const anomalyScore = computed(() => {
   if (scoreBreakdown.value.length === 0) return 0
-  const maxAbsZ = Math.max(...scoreBreakdown.value.map(s => Math.abs(s.zScore)))
+
+  const validScores = scoreBreakdown.value.filter(s => s.zScore !== null && !isNaN(s.zScore))
+  if (validScores.length === 0) return 0
+
+  const maxAbsZ = Math.max(...validScores.map(s => Math.abs(s.zScore)))
+
+  // Gewogen gemiddelde van absolute z-scores
+  const totalWeight = validScores.reduce((sum, s) => sum + s.weight, 0)
+  const weightedAvgZ = validScores.reduce((sum, s) =>
+    sum + Math.abs(s.zScore) * s.weight, 0
+  ) / totalWeight
+
+  // Combinatie: 60% max + 40% gewogen gemiddelde
+  const combined = 0.6 * maxAbsZ + 0.4 * weightedAvgZ
+
   // Normaliseer: z=3 = score 1.0
-  return Math.min(1, maxAbsZ / 3)
+  return Math.min(1, combined / 3)
 })
 
 const anomalyLabel = computed(() => {
@@ -109,7 +395,10 @@ const anomalyLabel = computed(() => {
   return { text: 'Sterk afwijkend', color: 'red' }
 })
 
-// Load data for selected date
+// ============================================================
+// Data laden
+// ============================================================
+
 async function loadDayStats() {
   try {
     const { data, error: fetchError } = await supabase
@@ -132,69 +421,120 @@ async function loadDayStats() {
   }
 }
 
-// Load baseline stats (last 14 days excluding selected date)
+async function loadRoomHourlyData() {
+  try {
+    const dayStart = `${selectedDate.value}T00:00:00`
+    const dayEnd = `${selectedDate.value}T23:59:59`
+
+    const { data, error: fetchError } = await supabase
+      .from('room_activity_hourly')
+      .select('room_name, hour, motion_events, door_events, total_events')
+      .gte('hour', dayStart)
+      .lte('hour', dayEnd)
+
+    if (fetchError) {
+      console.error('Error loading room hourly data:', fetchError)
+      return
+    }
+
+    roomHourlyData.value = data || []
+  } catch (e) {
+    console.error('Error loading room hourly data:', e)
+  }
+}
+
 async function loadBaselineStats() {
   try {
     const selected = new Date(selectedDate.value)
     const fourteenDaysAgo = new Date(selected)
     fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14)
 
-    const { data, error: fetchError } = await supabase
+    // Haal baseline dagstats op
+    const { data: dailyData, error: dailyError } = await supabase
       .from('daily_activity_stats')
       .select('*')
       .gte('date', toLocalDateKey(fourteenDaysAgo))
       .lt('date', selectedDate.value)
 
-    if (fetchError) {
-      console.error('Error loading baseline stats:', fetchError)
+    if (dailyError) {
+      console.error('Error loading baseline stats:', dailyError)
       return
     }
 
-    if (!data || data.length === 0) {
+    if (!dailyData || dailyData.length === 0) {
       baselineStats.value = null
       return
     }
 
-  // Bereken gemiddelden en standaarddeviaties
-  const stats = {}
+    // Haal baseline room hourly data op
+    const { data: roomData } = await supabase
+      .from('room_activity_hourly')
+      .select('room_name, hour, motion_events, door_events, total_events')
+      .gte('hour', `${toLocalDateKey(fourteenDaysAgo)}T00:00:00`)
+      .lt('hour', `${selectedDate.value}T00:00:00`)
 
-  features.forEach(feature => {
-    let values = data.map(d => d[feature.key]).filter(v => v !== null && v !== undefined)
+    // Bereken gemiddeld events_per_hour patroon voor cosine similarity
+    const hourlyPatterns = dailyData
+      .filter(d => d.events_per_hour && d.events_per_hour.length === 24)
+      .map(d => d.events_per_hour)
 
-    if (feature.isTime) {
-      // Convert times to minutes
-      values = values.map(timeToMinutes).filter(v => v !== null)
+    if (hourlyPatterns.length > 0) {
+      const avgPattern = Array(24).fill(0)
+      for (const pattern of hourlyPatterns) {
+        for (let h = 0; h < 24; h++) {
+          avgPattern[h] += (pattern[h] || 0)
+        }
+      }
+      baselineAvgHourlyPattern.value = avgPattern.map(v => v / hourlyPatterns.length)
+    } else {
+      baselineAvgHourlyPattern.value = null
     }
 
-    if (values.length > 0) {
-      const avg = values.reduce((a, b) => a + b, 0) / values.length
-      const variance = values.reduce((sum, v) => sum + Math.pow(v - avg, 2), 0) / values.length
-      const std = Math.sqrt(variance)
-
-      if (feature.isTime) {
-        stats[`avg_${feature.key}_minutes`] = avg
-        stats[`std_${feature.key}_minutes`] = std
-        stats[`min_${feature.key}_minutes`] = Math.min(...values)
-        stats[`max_${feature.key}_minutes`] = Math.max(...values)
-      } else {
-        stats[`avg_${feature.key}`] = avg
-        stats[`std_${feature.key}`] = std
-        stats[`min_${feature.key}`] = Math.min(...values)
-        stats[`max_${feature.key}`] = Math.max(...values)
+    // Groepeer room data per datum
+    const roomByDate = {}
+    if (roomData) {
+      for (const row of roomData) {
+        const dateKey = row.hour.substring(0, 10) // YYYY-MM-DD
+        if (!roomByDate[dateKey]) roomByDate[dateKey] = []
+        roomByDate[dateKey].push(row)
       }
     }
-  })
+    baselineRoomByDate.value = roomByDate
 
-    stats.daysCount = data.length
+    // Bereken gemiddelde en standaarddeviatie per feature
+    const stats = {}
+
+    for (const feature of allFeatures) {
+      const values = []
+
+      for (const day of dailyData) {
+        const value = getHistoricalValue(feature, day, roomByDate[day.date] || [])
+        if (value !== null && value !== undefined && !isNaN(value)) {
+          values.push(value)
+        }
+      }
+
+      if (values.length > 0) {
+        const mean = values.reduce((a, b) => a + b, 0) / values.length
+        const variance = values.reduce((sum, v) => sum + (v - mean) ** 2, 0) / values.length
+        const std = Math.sqrt(variance)
+
+        const suffix = feature.isTime ? '_minutes' : ''
+        stats[`avg_${feature.key}${suffix}`] = mean
+        stats[`std_${feature.key}${suffix}`] = std || 1 // minimum 1 om deling door 0 te voorkomen
+        stats[`min_${feature.key}${suffix}`] = Math.min(...values)
+        stats[`max_${feature.key}${suffix}`] = Math.max(...values)
+      }
+    }
+
+    stats.daysCount = dailyData.length
     baselineStats.value = stats
   } catch (e) {
     console.error('Error loading baseline stats:', e)
   }
 }
 
-// Load data quality info
 async function loadDataQuality() {
-  // Check hoeveel dagen we data hebben
   const { data: allDays, error: daysError } = await supabase
     .from('daily_activity_stats')
     .select('date, total_events')
@@ -206,7 +546,6 @@ async function loadDataQuality() {
     return
   }
 
-  // Check sensor status
   const { data: sensors, error: sensorsError } = await supabase
     .from('hue_devices')
     .select('id, name, room_name, device_type, last_state_at')
@@ -225,9 +564,8 @@ async function loadDataQuality() {
     return new Date(s.last_state_at) < ninetyMinutesAgo
   })
 
-  // Check events vandaag
   const today = toLocalDateKey(new Date())
-  const { data: todayEvents, error: todayError } = await supabase
+  const { data: todayEvents } = await supabase
     .from('activity_events')
     .select('id', { count: 'exact', head: true })
     .gte('recorded_at', `${today}T00:00:00`)
@@ -247,6 +585,7 @@ async function loadAllData() {
   try {
     await Promise.all([
       loadDayStats(),
+      loadRoomHourlyData(),
       loadBaselineStats(),
       loadDataQuality()
     ])
@@ -255,7 +594,6 @@ async function loadAllData() {
   }
 }
 
-// Watch for date changes
 watch(selectedDate, () => {
   loadAllData()
 })
@@ -276,7 +614,7 @@ onMounted(() => {
             Developer
           </span>
         </div>
-        <p class="text-gray-500">Debug tools voor anomaly detection</p>
+        <p class="text-gray-500">Anomaly detection met {{ activeFeatures.length }} features</p>
       </div>
     </div>
 
@@ -363,7 +701,7 @@ onMounted(() => {
                 {{ anomalyLabel.text }}
               </div>
               <div class="text-sm text-gray-500">
-                Gebaseerd op {{ baselineStats?.daysCount || 0 }} dagen baseline
+                {{ activeFeatures.length }} features, {{ baselineStats?.daysCount || 0 }} dagen baseline
               </div>
             </div>
           </div>
@@ -388,73 +726,93 @@ onMounted(() => {
             <span>0.66</span>
             <span>1.0 (afwijkend)</span>
           </div>
+
+          <!-- Formula info -->
+          <div class="mt-3 text-xs text-gray-400">
+            Score = 0.6 * max(|z|) + 0.4 * gewogen gem(|z|), genormaliseerd naar 0-1
+          </div>
         </div>
 
-        <!-- Score Breakdown Table -->
+        <!-- Score Breakdown per groep -->
         <div class="bg-white border border-gray-200 rounded-lg p-5">
-          <h2 class="text-base font-semibold text-gray-900 mb-4">Score Breakdown</h2>
+          <h2 class="text-base font-semibold text-gray-900 mb-4">
+            Score Breakdown
+            <span class="text-sm font-normal text-gray-500 ml-2">
+              {{ activeFeatures.length }} features in {{ activeFeatureGroups.length }} groepen
+            </span>
+          </h2>
 
-          <div class="overflow-x-auto">
-            <table class="w-full text-sm">
-              <thead>
-                <tr class="text-left text-gray-500 border-b">
-                  <th class="pb-2 font-medium">Feature</th>
-                  <th class="pb-2 font-medium text-right">Vandaag</th>
-                  <th class="pb-2 font-medium text-right">Baseline (μ)</th>
-                  <th class="pb-2 font-medium text-right">Std (σ)</th>
-                  <th class="pb-2 font-medium text-right">Z-score</th>
-                  <th class="pb-2 font-medium w-32"></th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="row in scoreBreakdown"
-                  :key="row.label"
-                  class="border-b border-gray-100 last:border-0"
-                >
-                  <td class="py-3 font-medium text-gray-900">{{ row.label }}</td>
-                  <td class="py-3 text-right font-mono">{{ row.todayValue }}</td>
-                  <td class="py-3 text-right font-mono text-gray-500">{{ row.baselineValue }}</td>
-                  <td class="py-3 text-right font-mono text-gray-400">{{ row.stddev }}</td>
-                  <td class="py-3 text-right font-mono" :class="{
-                    'text-emerald-600': row.severity === 'low',
-                    'text-amber-600': row.severity === 'medium',
-                    'text-red-600': row.severity === 'high'
-                  }">
-                    {{ row.zScoreDisplay }}
-                  </td>
-                  <td class="py-3 pl-4">
-                    <!-- Z-score visual bar -->
-                    <div class="h-2 bg-gray-100 rounded-full overflow-hidden relative">
-                      <!-- Center line -->
-                      <div class="absolute left-1/2 top-0 bottom-0 w-px bg-gray-300"></div>
-                      <!-- Z-score indicator -->
-                      <div
-                        class="absolute top-0 bottom-0 rounded-full"
-                        :class="{
-                          'bg-emerald-500': row.severity === 'low',
-                          'bg-amber-500': row.severity === 'medium',
-                          'bg-red-500': row.severity === 'high'
-                        }"
-                        :style="{
-                          left: `${50 + Math.max(-50, Math.min(50, row.zScore * 16.67))}%`,
-                          width: '8px',
-                          marginLeft: '-4px'
-                        }"
-                      ></div>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+          <div v-for="group in activeFeatureGroups" :key="group.id" class="mb-5 last:mb-0">
+            <!-- Groep header -->
+            <div class="flex items-center gap-2 mb-2">
+              <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                {{ group.label }}
+              </span>
+              <div class="flex-1 h-px bg-gray-100"></div>
+            </div>
+
+            <!-- Feature tabel -->
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead v-if="group === activeFeatureGroups[0]">
+                  <tr class="text-left text-gray-500">
+                    <th class="pb-2 font-medium">Feature</th>
+                    <th class="pb-2 font-medium text-right">Vandaag</th>
+                    <th class="pb-2 font-medium text-right">Baseline</th>
+                    <th class="pb-2 font-medium text-right">Std</th>
+                    <th class="pb-2 font-medium text-right">Z-score</th>
+                    <th class="pb-2 font-medium w-28"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="row in groupedBreakdown[group.id]"
+                    :key="row.key"
+                    class="border-b border-gray-50 last:border-0"
+                  >
+                    <td class="py-2 font-medium text-gray-900">{{ row.label }}</td>
+                    <td class="py-2 text-right font-mono text-sm">{{ row.todayValue }}</td>
+                    <td class="py-2 text-right font-mono text-sm text-gray-500">{{ row.baselineValue }}</td>
+                    <td class="py-2 text-right font-mono text-sm text-gray-400">{{ row.stddev }}</td>
+                    <td class="py-2 text-right font-mono text-sm" :class="{
+                      'text-emerald-600': row.severity === 'low',
+                      'text-amber-600': row.severity === 'medium',
+                      'text-red-600': row.severity === 'high'
+                    }">
+                      {{ row.zScoreDisplay }}
+                    </td>
+                    <td class="py-2 pl-3">
+                      <!-- Z-score visuele balk -->
+                      <div class="h-2 bg-gray-100 rounded-full overflow-hidden relative">
+                        <div class="absolute left-1/2 top-0 bottom-0 w-px bg-gray-300"></div>
+                        <div
+                          class="absolute top-0 bottom-0 rounded-full"
+                          :class="{
+                            'bg-emerald-500': row.severity === 'low',
+                            'bg-amber-500': row.severity === 'medium',
+                            'bg-red-500': row.severity === 'high'
+                          }"
+                          :style="{
+                            left: `${50 + Math.max(-50, Math.min(50, row.zScore * 16.67))}%`,
+                            width: '8px',
+                            marginLeft: '-4px'
+                          }"
+                        ></div>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <div class="mt-4 text-xs text-gray-400">
-            Z-score interpretatie: |z| &lt; 1 = normaal, 1-2 = afwijkend, &gt; 2 = sterk afwijkend
+            Z-score: |z| &lt; 1 = normaal, 1-2 = afwijkend, &gt; 2 = sterk afwijkend.
+            Feature weight bepaalt bijdrage aan gewogen gemiddelde.
           </div>
         </div>
 
-        <!-- Baseline Statistics -->
+        <!-- Baseline Statistieken -->
         <div class="bg-white border border-gray-200 rounded-lg p-5">
           <h2 class="text-base font-semibold text-gray-900 mb-4">Baseline Statistieken</h2>
 
@@ -467,32 +825,39 @@ onMounted(() => {
               <thead>
                 <tr class="text-left text-gray-500 border-b">
                   <th class="pb-2 font-medium">Feature</th>
-                  <th class="pb-2 font-medium text-right">Gemiddelde (μ)</th>
-                  <th class="pb-2 font-medium text-right">Std (σ)</th>
+                  <th class="pb-2 font-medium text-right">Gemiddelde</th>
+                  <th class="pb-2 font-medium text-right">Std</th>
                   <th class="pb-2 font-medium text-right">Min</th>
                   <th class="pb-2 font-medium text-right">Max</th>
                 </tr>
               </thead>
               <tbody>
-                <tr
-                  v-for="feature in features"
-                  :key="feature.key"
-                  class="border-b border-gray-100 last:border-0"
-                >
-                  <td class="py-3 font-medium text-gray-900">{{ feature.label }}</td>
-                  <template v-if="feature.isTime">
-                    <td class="py-3 text-right font-mono">{{ minutesToTime(baselineStats[`avg_${feature.key}_minutes`]) }}</td>
-                    <td class="py-3 text-right font-mono text-gray-400">{{ baselineStats[`std_${feature.key}_minutes`]?.toFixed(0) || '-' }} min</td>
-                    <td class="py-3 text-right font-mono text-gray-500">{{ minutesToTime(baselineStats[`min_${feature.key}_minutes`]) }}</td>
-                    <td class="py-3 text-right font-mono text-gray-500">{{ minutesToTime(baselineStats[`max_${feature.key}_minutes`]) }}</td>
-                  </template>
-                  <template v-else>
-                    <td class="py-3 text-right font-mono">{{ baselineStats[`avg_${feature.key}`]?.toFixed(1) || '-' }}</td>
-                    <td class="py-3 text-right font-mono text-gray-400">{{ baselineStats[`std_${feature.key}`]?.toFixed(2) || '-' }}</td>
-                    <td class="py-3 text-right font-mono text-gray-500">{{ baselineStats[`min_${feature.key}`] ?? '-' }}</td>
-                    <td class="py-3 text-right font-mono text-gray-500">{{ baselineStats[`max_${feature.key}`] ?? '-' }}</td>
-                  </template>
-                </tr>
+                <template v-for="group in activeFeatureGroups" :key="'bl-' + group.id">
+                  <tr class="bg-gray-50">
+                    <td colspan="5" class="py-1.5 px-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      {{ group.label }}
+                    </td>
+                  </tr>
+                  <tr
+                    v-for="feature in group.features"
+                    :key="'bl-' + feature.key"
+                    class="border-b border-gray-100 last:border-0"
+                  >
+                    <td class="py-2 font-medium text-gray-900">{{ feature.label }}</td>
+                    <template v-if="feature.isTime">
+                      <td class="py-2 text-right font-mono">{{ minutesToTime(baselineStats[`avg_${feature.key}_minutes`]) }}</td>
+                      <td class="py-2 text-right font-mono text-gray-400">{{ baselineStats[`std_${feature.key}_minutes`]?.toFixed(0) || '-' }} min</td>
+                      <td class="py-2 text-right font-mono text-gray-500">{{ minutesToTime(baselineStats[`min_${feature.key}_minutes`]) }}</td>
+                      <td class="py-2 text-right font-mono text-gray-500">{{ minutesToTime(baselineStats[`max_${feature.key}_minutes`]) }}</td>
+                    </template>
+                    <template v-else>
+                      <td class="py-2 text-right font-mono">{{ baselineStats[`avg_${feature.key}`]?.toFixed(1) || '-' }}</td>
+                      <td class="py-2 text-right font-mono text-gray-400">{{ baselineStats[`std_${feature.key}`]?.toFixed(2) || '-' }}</td>
+                      <td class="py-2 text-right font-mono text-gray-500">{{ baselineStats[`min_${feature.key}`]?.toFixed?.(1) ?? baselineStats[`min_${feature.key}`] ?? '-' }}</td>
+                      <td class="py-2 text-right font-mono text-gray-500">{{ baselineStats[`max_${feature.key}`]?.toFixed?.(1) ?? baselineStats[`max_${feature.key}`] ?? '-' }}</td>
+                    </template>
+                  </tr>
+                </template>
               </tbody>
             </table>
           </div>
