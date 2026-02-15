@@ -534,8 +534,18 @@ async function loadHeatmapData() {
   }
 
   // Aggregate events per room per hour
+  const now = new Date()
+  const currentHourTimestamp = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours()).getTime()
+
   for (const row of data || []) {
     const eventDate = new Date(row.hour)
+    const eventTimestamp = eventDate.getTime()
+
+    // Skip current hour - it hasn't been aggregated yet (aggregation runs at :05 past each hour)
+    if (eventTimestamp >= currentHourTimestamp) {
+      continue
+    }
+
     const dateKey = toLocalDateKey(eventDate)
     const hourOfDay = eventDate.getHours()
 
