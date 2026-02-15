@@ -336,7 +336,7 @@ onMounted(() => {
                     return `${x},${Math.max(5, Math.min(95, y))}`
                   }).join(' ')"
                   fill="none"
-                  stroke="#4A7B58"
+                  stroke="#3E6652"
                   stroke-width="2.5"
                 />
 

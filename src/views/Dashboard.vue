@@ -309,10 +309,10 @@ function formatDayLabel(dateStr) {
 function getHeatmapColor(count) {
   if (count === 0) return 'bg-gray-100'
   const intensity = count / maxCount.value
-  if (intensity < 0.25) return 'bg-emerald-100'
-  if (intensity < 0.5) return 'bg-emerald-300'
-  if (intensity < 0.75) return 'bg-emerald-500'
-  return 'bg-emerald-700'
+  if (intensity < 0.25) return 'bg-primary-100'
+  if (intensity < 0.5) return 'bg-primary-300'
+  if (intensity < 0.75) return 'bg-primary-500'
+  return 'bg-primary-700'
 }
 
 function formatActivityTime(timestamp) {
@@ -633,14 +633,14 @@ onUnmounted(() => {
   <div class="space-y-4" style="max-width: 1400px;">
     <!-- Loading -->
     <div v-if="loading" class="bg-white rounded-lg border p-12 text-center">
-      <div class="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+      <div class="animate-spin w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full mx-auto mb-4"></div>
       <p class="text-gray-500">Laden...</p>
     </div>
 
     <!-- No Hue config -->
     <div v-else-if="!hasConfig" class="bg-white rounded-lg border p-12 text-center">
-      <div class="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-        <svg class="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div class="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
+        <svg class="w-8 h-8 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
         </svg>
       </div>
@@ -648,7 +648,7 @@ onUnmounted(() => {
       <p class="text-gray-500 mb-4">Koppel eerst je Philips Hue Bridge om sensordata te ontvangen.</p>
       <router-link
         to="/instellingen"
-        class="inline-block px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors"
+        class="inline-block px-4 py-2 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 transition-colors"
       >
         Naar Instellingen
       </router-link>
@@ -659,7 +659,7 @@ onUnmounted(() => {
       <div
         class="rounded-lg p-5"
         :class="{
-          'bg-emerald-50 border border-emerald-200': statusInfo.color === 'green',
+          'bg-primary-50 border border-primary-200': statusInfo.color === 'green',
           'bg-amber-50 border border-amber-200': statusInfo.color === 'amber',
           'bg-red-50 border border-red-200': statusInfo.color === 'red',
           'bg-gray-50 border border-gray-200': statusInfo.color === 'gray'
@@ -670,7 +670,7 @@ onUnmounted(() => {
           <div
             class="w-3 h-3 rounded-full flex-shrink-0"
             :class="{
-              'bg-emerald-500': statusInfo.color === 'green',
+              'bg-primary-500': statusInfo.color === 'green',
               'bg-amber-500': statusInfo.color === 'amber',
               'bg-red-500': statusInfo.color === 'red',
               'bg-gray-400': statusInfo.color === 'gray'
@@ -680,7 +680,7 @@ onUnmounted(() => {
             <h1
               class="text-lg font-semibold"
               :class="{
-                'text-emerald-900': statusInfo.color === 'green',
+                'text-primary-900': statusInfo.color === 'green',
                 'text-amber-900': statusInfo.color === 'amber',
                 'text-red-900': statusInfo.color === 'red',
                 'text-gray-900': statusInfo.color === 'gray'
@@ -691,7 +691,7 @@ onUnmounted(() => {
             <p
               class="text-sm"
               :class="{
-                'text-emerald-700': statusInfo.color === 'green',
+                'text-primary-700': statusInfo.color === 'green',
                 'text-amber-700': statusInfo.color === 'amber',
                 'text-red-700': statusInfo.color === 'red',
                 'text-gray-600': statusInfo.color === 'gray'
@@ -768,7 +768,7 @@ onUnmounted(() => {
                   v-for="hour in day.hours"
                   :key="hour.hour"
                   :class="[
-                    'flex-1 h-6 md:h-4 rounded-sm cursor-pointer hover:ring-2 hover:ring-emerald-400 hover:ring-offset-1',
+                    'flex-1 h-6 md:h-4 rounded-sm cursor-pointer hover:ring-2 hover:ring-primary-400 hover:ring-offset-1',
                     getHeatmapColor(hour.count)
                   ]"
                   @mouseenter="handleHeatmapHover($event, day, hour)"
@@ -785,10 +785,10 @@ onUnmounted(() => {
             <span>Rustig</span>
             <div class="flex gap-0.5">
               <div class="w-3 h-3 rounded-sm bg-gray-100"></div>
-              <div class="w-3 h-3 rounded-sm bg-emerald-100"></div>
-              <div class="w-3 h-3 rounded-sm bg-emerald-300"></div>
-              <div class="w-3 h-3 rounded-sm bg-emerald-500"></div>
-              <div class="w-3 h-3 rounded-sm bg-emerald-700"></div>
+              <div class="w-3 h-3 rounded-sm bg-primary-100"></div>
+              <div class="w-3 h-3 rounded-sm bg-primary-300"></div>
+              <div class="w-3 h-3 rounded-sm bg-primary-500"></div>
+              <div class="w-3 h-3 rounded-sm bg-primary-700"></div>
             </div>
             <span>Actief</span>
           </div>
@@ -820,7 +820,7 @@ onUnmounted(() => {
 
         <router-link
           to="/patronen"
-          class="block text-sm text-emerald-600 hover:text-emerald-700 mt-4 text-right"
+          class="block text-sm text-primary-600 hover:text-primary-700 mt-4 text-right"
         >
           Bekijk volledige tijdlijn
         </router-link>
@@ -853,7 +853,7 @@ onUnmounted(() => {
             <span class="text-xs text-gray-600 w-20 truncate">{{ room.name }}</span>
             <div class="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
               <div
-                class="h-full bg-emerald-500 rounded-full"
+                class="h-full bg-primary-500 rounded-full"
                 :style="{ width: room.barWidth + '%' }"
               ></div>
             </div>

@@ -394,20 +394,20 @@ onMounted(async () => {
 
     <!-- Loading -->
     <div v-if="loading" class="bg-white rounded-lg border border-gray-200 p-12 text-center">
-      <div class="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+      <div class="animate-spin w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full mx-auto mb-4"></div>
       <p class="text-gray-500">Patronen analyseren...</p>
     </div>
 
     <!-- No Hue config -->
     <div v-else-if="!hasConfig" class="bg-white rounded-lg border border-gray-200 p-12 text-center">
-      <div class="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-        <svg class="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div class="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
+        <svg class="w-8 h-8 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
         </svg>
       </div>
       <h2 class="text-lg font-semibold text-gray-900 mb-2">Verbind je Hue Bridge</h2>
       <p class="text-gray-500 mb-4">Koppel eerst je Philips Hue Bridge om patronen te analyseren.</p>
-      <router-link to="/instellingen" class="inline-block px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors">
+      <router-link to="/instellingen" class="inline-block px-4 py-2 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 transition-colors">
         Naar Instellingen
       </router-link>
     </div>
@@ -473,7 +473,7 @@ onMounted(async () => {
           >
             <div
               class="w-full rounded-t transition-all"
-              :class="count > 0 ? 'bg-emerald-400 group-hover:bg-emerald-500' : 'bg-gray-100'"
+              :class="count > 0 ? 'bg-primary-400 group-hover:bg-primary-500' : 'bg-gray-100'"
               :style="{ height: `${Math.max(2, (count / maxHourlyAvg) * 100)}%` }"
             ></div>
             <div v-if="hour % 3 === 0" class="text-[10px] text-gray-400 mt-1">{{ String(hour).padStart(2, '0') }}</div>
@@ -509,7 +509,7 @@ onMounted(async () => {
               <div
                 class="text-xs font-medium px-2 py-0.5 rounded-full"
                 :class="{
-                  'bg-emerald-100 text-emerald-700': metric.severity === 'low',
+                  'bg-primary-100 text-primary-700': metric.severity === 'low',
                   'bg-amber-100 text-amber-700': metric.severity === 'medium',
                   'bg-red-100 text-red-700': metric.severity === 'high'
                 }"
@@ -537,7 +537,7 @@ onMounted(async () => {
               </div>
               <div
                 v-if="todayDayParts.afternoon.pct > 0"
-                class="bg-emerald-400 flex items-center justify-center"
+                class="bg-primary-400 flex items-center justify-center"
                 :style="{ width: `${todayDayParts.afternoon.pct}%` }"
               >
                 <span v-if="todayDayParts.afternoon.pct > 12" class="text-[10px] text-white font-medium">{{ todayDayParts.afternoon.pct }}%</span>
@@ -572,10 +572,10 @@ onMounted(async () => {
               </div>
               <div
                 v-if="avgDayParts.afternoon.pct > 0"
-                class="bg-emerald-200 flex items-center justify-center"
+                class="bg-primary-200 flex items-center justify-center"
                 :style="{ width: `${avgDayParts.afternoon.pct}%` }"
               >
-                <span v-if="avgDayParts.afternoon.pct > 12" class="text-[10px] text-emerald-700 font-medium">{{ avgDayParts.afternoon.pct }}%</span>
+                <span v-if="avgDayParts.afternoon.pct > 12" class="text-[10px] text-primary-700 font-medium">{{ avgDayParts.afternoon.pct }}%</span>
               </div>
               <div
                 v-if="avgDayParts.evening.pct > 0"
@@ -600,7 +600,7 @@ onMounted(async () => {
               <span class="w-3 h-2 bg-blue-400 rounded"></span> Ochtend
             </span>
             <span class="flex items-center gap-1">
-              <span class="w-3 h-2 bg-emerald-400 rounded"></span> Middag
+              <span class="w-3 h-2 bg-primary-400 rounded"></span> Middag
             </span>
             <span class="flex items-center gap-1">
               <span class="w-3 h-2 bg-amber-400 rounded"></span> Avond
@@ -632,7 +632,7 @@ onMounted(async () => {
                   <!-- Vandaag (voorgrond) -->
                   <div
                     class="flex-1 rounded-t"
-                    :class="todayVsAvgHourly.today[hour - 1] > 0 ? 'bg-emerald-500' : 'bg-gray-100'"
+                    :class="todayVsAvgHourly.today[hour - 1] > 0 ? 'bg-primary-500' : 'bg-gray-100'"
                     :style="{ height: `${Math.max(1, (todayVsAvgHourly.today[hour - 1] / maxComparisonHourly) * 100)}%` }"
                   ></div>
                 </div>
@@ -646,7 +646,7 @@ onMounted(async () => {
               <span class="w-3 h-2 bg-gray-200 rounded"></span> Gemiddeld
             </span>
             <span class="flex items-center gap-1">
-              <span class="w-3 h-2 bg-emerald-500 rounded"></span> Vandaag
+              <span class="w-3 h-2 bg-primary-500 rounded"></span> Vandaag
             </span>
             <span class="flex items-center gap-1 opacity-30">
               <span class="w-3 h-2 bg-gray-300 rounded"></span> Nog te komen
@@ -681,7 +681,7 @@ onMounted(async () => {
             <div class="text-xs font-medium text-gray-700 mb-1">{{ day.avg }}</div>
             <div
               class="w-full rounded-t transition-all"
-              :class="day.avg > 0 ? 'bg-emerald-400 group-hover:bg-emerald-500' : 'bg-gray-100'"
+              :class="day.avg > 0 ? 'bg-primary-400 group-hover:bg-primary-500' : 'bg-gray-100'"
               :style="{ height: `${Math.max(4, (day.avg / maxWeekdayAvg) * 100)}%` }"
             ></div>
             <div class="text-xs font-medium text-gray-500 mt-1">{{ day.day }}</div>

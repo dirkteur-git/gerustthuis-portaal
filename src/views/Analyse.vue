@@ -390,7 +390,7 @@ const anomalyScore = computed(() => {
 
 const anomalyLabel = computed(() => {
   const score = anomalyScore.value
-  if (score < 0.33) return { text: 'Normaal', color: 'emerald' }
+  if (score < 0.33) return { text: 'Normaal', color: 'primary' }
   if (score < 0.66) return { text: 'Afwijkend', color: 'amber' }
   return { text: 'Sterk afwijkend', color: 'red' }
 })
@@ -686,7 +686,7 @@ onMounted(() => {
           <!-- Score display -->
           <div class="flex items-center gap-4 mb-4">
             <div class="text-4xl font-bold" :class="{
-              'text-emerald-600': anomalyLabel.color === 'emerald',
+              'text-primary-600': anomalyLabel.color === 'primary',
               'text-amber-600': anomalyLabel.color === 'amber',
               'text-red-600': anomalyLabel.color === 'red'
             }">
@@ -694,7 +694,7 @@ onMounted(() => {
             </div>
             <div>
               <div class="font-medium" :class="{
-                'text-emerald-700': anomalyLabel.color === 'emerald',
+                'text-primary-700': anomalyLabel.color === 'primary',
                 'text-amber-700': anomalyLabel.color === 'amber',
                 'text-red-700': anomalyLabel.color === 'red'
               }">
@@ -711,7 +711,7 @@ onMounted(() => {
             <div
               class="h-full rounded-full transition-all duration-500"
               :class="{
-                'bg-emerald-500': anomalyLabel.color === 'emerald',
+                'bg-primary-500': anomalyLabel.color === 'primary',
                 'bg-amber-500': anomalyLabel.color === 'amber',
                 'bg-red-500': anomalyLabel.color === 'red'
               }"
@@ -775,7 +775,7 @@ onMounted(() => {
                     <td class="py-2 text-right font-mono text-sm text-gray-500">{{ row.baselineValue }}</td>
                     <td class="py-2 text-right font-mono text-sm text-gray-400">{{ row.stddev }}</td>
                     <td class="py-2 text-right font-mono text-sm" :class="{
-                      'text-emerald-600': row.severity === 'low',
+                      'text-primary-600': row.severity === 'low',
                       'text-amber-600': row.severity === 'medium',
                       'text-red-600': row.severity === 'high'
                     }">
@@ -788,7 +788,7 @@ onMounted(() => {
                         <div
                           class="absolute top-0 bottom-0 rounded-full"
                           :class="{
-                            'bg-emerald-500': row.severity === 'low',
+                            'bg-primary-500': row.severity === 'low',
                             'bg-amber-500': row.severity === 'medium',
                             'bg-red-500': row.severity === 'high'
                           }"
@@ -890,7 +890,7 @@ onMounted(() => {
             </div>
 
             <div class="bg-gray-50 rounded-lg p-4">
-              <div class="text-2xl font-bold" :class="dataQuality.offlineSensors > 0 ? 'text-red-600' : 'text-emerald-600'">
+              <div class="text-2xl font-bold" :class="dataQuality.offlineSensors > 0 ? 'text-red-600' : 'text-primary-600'">
                 {{ dataQuality.offlineSensors }}
               </div>
               <div class="text-sm text-gray-500">Offline sensoren</div>

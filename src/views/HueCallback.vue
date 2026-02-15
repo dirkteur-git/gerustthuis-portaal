@@ -84,7 +84,7 @@ onMounted(async () => {
     <div class="bg-white rounded-lg shadow p-8 max-w-md w-full text-center">
       <!-- Processing -->
       <template v-if="status === 'processing'">
-        <div class="w-16 h-16 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+        <div class="w-16 h-16 border-4 border-primary-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
         <h2 class="text-lg font-medium mb-2">Even geduld...</h2>
         <p class="text-gray-600">{{ message }}</p>
       </template>
@@ -110,7 +110,7 @@ onMounted(async () => {
         </div>
         <h2 class="text-lg font-medium text-red-800 mb-2">Er ging iets mis</h2>
         <p class="text-gray-600 mb-4">{{ error }}</p>
-        <router-link to="/hue" class="text-emerald-600 hover:text-emerald-500">
+        <router-link to="/hue" class="text-primary-600 hover:text-primary-500">
           Probeer opnieuw →
         </router-link>
       </template>

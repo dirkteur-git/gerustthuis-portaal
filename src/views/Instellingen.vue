@@ -222,7 +222,7 @@ function copyInviteLink(link) {
           :class="[
             'py-3 text-sm font-medium border-b-2 transition-colors',
             activeTab === 'account'
-              ? 'border-emerald-600 text-emerald-600'
+              ? 'border-primary-600 text-primary-600'
               : 'border-transparent text-gray-500 hover:text-gray-700'
           ]"
         >
@@ -233,7 +233,7 @@ function copyInviteLink(link) {
           :class="[
             'py-3 text-sm font-medium border-b-2 transition-colors',
             activeTab === 'integraties'
-              ? 'border-emerald-600 text-emerald-600'
+              ? 'border-primary-600 text-primary-600'
               : 'border-transparent text-gray-500 hover:text-gray-700'
           ]"
         >
@@ -245,7 +245,7 @@ function copyInviteLink(link) {
           :class="[
             'py-3 text-sm font-medium border-b-2 transition-colors',
             activeTab === 'huishouden'
-              ? 'border-emerald-600 text-emerald-600'
+              ? 'border-primary-600 text-primary-600'
               : 'border-transparent text-gray-500 hover:text-gray-700'
           ]"
         >
@@ -281,7 +281,7 @@ function copyInviteLink(link) {
               v-model="profileForm.displayName"
               type="text"
               placeholder="Je naam"
-              class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             >
           </div>
 
@@ -291,7 +291,7 @@ function copyInviteLink(link) {
             <div class="flex gap-2">
               <select
                 v-model="profileForm.phoneCountryCode"
-                class="w-32 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white"
+                class="w-32 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white"
               >
                 <option v-for="cc in countryCodes" :key="cc.code" :value="cc.code">
                   {{ cc.flag }} {{ cc.code }}
@@ -301,7 +301,7 @@ function copyInviteLink(link) {
                 v-model="profileForm.phoneNumber"
                 type="tel"
                 placeholder="612345678"
-                class="flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                class="flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               >
             </div>
             <p class="text-xs text-gray-400 mt-1">Zonder voorloop-nul, bijv. 612345678</p>
@@ -316,7 +316,7 @@ function copyInviteLink(link) {
                 :class="[
                   'flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors',
                   profileForm.communicationPreference === 'email'
-                    ? 'border-emerald-500 bg-emerald-50'
+                    ? 'border-primary-500 bg-primary-50'
                     : 'border-gray-200 hover:bg-gray-50'
                 ]"
               >
@@ -337,7 +337,7 @@ function copyInviteLink(link) {
                 :class="[
                   'flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors',
                   profileForm.communicationPreference === 'sms'
-                    ? 'border-emerald-500 bg-emerald-50'
+                    ? 'border-primary-500 bg-primary-50'
                     : 'border-gray-200 hover:bg-gray-50'
                 ]"
               >
@@ -358,7 +358,7 @@ function copyInviteLink(link) {
                 :class="[
                   'flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors',
                   profileForm.communicationPreference === 'whatsapp'
-                    ? 'border-emerald-500 bg-emerald-50'
+                    ? 'border-primary-500 bg-primary-50'
                     : 'border-gray-200 hover:bg-gray-50'
                 ]"
               >
@@ -391,7 +391,7 @@ function copyInviteLink(link) {
             <button
               type="submit"
               :disabled="profileSaving"
-              class="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+              class="px-4 py-2 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 disabled:opacity-50 transition-colors"
             >
               {{ profileSaving ? 'Opslaan...' : 'Opslaan' }}
             </button>
@@ -412,7 +412,7 @@ function copyInviteLink(link) {
           <div
             @click="connectHue"
             class="flex items-center gap-4 p-4 border rounded-xl cursor-pointer hover:bg-gray-50 transition-colors"
-            :class="isHueConnected ? 'border-emerald-200 bg-emerald-50/50' : ''"
+            :class="isHueConnected ? 'border-primary-200 bg-primary-50/50' : ''"
           >
             <!-- Hue Logo -->
             <div class="w-14 h-14 bg-white rounded-xl flex items-center justify-center shrink-0 border">
@@ -424,7 +424,7 @@ function copyInviteLink(link) {
                 <h3 class="font-medium text-gray-900">Philips Hue</h3>
                 <span
                   v-if="isHueConnected"
-                  class="px-2 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-700 rounded-full"
+                  class="px-2 py-0.5 text-xs font-medium bg-primary-100 text-primary-700 rounded-full"
                 >
                   Verbonden
                 </span>
@@ -442,7 +442,7 @@ function copyInviteLink(link) {
           </div>
 
           <!-- Hue Details (when connected) -->
-          <div v-if="isHueConnected" class="ml-4 pl-4 border-l-2 border-emerald-200 space-y-3">
+          <div v-if="isHueConnected" class="ml-4 pl-4 border-l-2 border-primary-200 space-y-3">
             <div class="text-sm">
               <span class="text-gray-500">Verbonden sinds:</span>
               <span class="ml-2 font-medium text-gray-900">{{ hueConnectionAge }}</span>
@@ -518,8 +518,8 @@ function copyInviteLink(link) {
             class="flex items-center justify-between p-3 border rounded-lg"
           >
             <div class="flex items-center gap-3 min-w-0">
-              <div class="w-9 h-9 bg-emerald-100 rounded-full flex items-center justify-center shrink-0">
-                <span class="text-emerald-700 text-sm font-medium">
+              <div class="w-9 h-9 bg-primary-100 rounded-full flex items-center justify-center shrink-0">
+                <span class="text-primary-700 text-sm font-medium">
                   {{ (member.display_name || member.email || '?').substring(0, 2).toUpperCase() }}
                 </span>
               </div>
@@ -600,7 +600,7 @@ function copyInviteLink(link) {
               type="email"
               placeholder="naam@voorbeeld.nl"
               required
-              class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             >
           </div>
 
@@ -608,7 +608,7 @@ function copyInviteLink(link) {
             <label class="block text-sm font-medium text-gray-700 mb-1">Rol</label>
             <select
               v-model="inviteForm.role"
-              class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white"
+              class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white"
             >
               <option value="viewer">Viewer - kan data bekijken</option>
               <option value="admin">Admin - kan ook leden beheren</option>
@@ -640,7 +640,7 @@ function copyInviteLink(link) {
           <button
             type="submit"
             :disabled="inviteSending || !inviteForm.email"
-            class="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+            class="px-4 py-2 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 disabled:opacity-50 transition-colors"
           >
             {{ inviteSending ? 'Versturen...' : 'Uitnodiging versturen' }}
           </button>

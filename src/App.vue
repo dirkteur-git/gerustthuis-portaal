@@ -151,7 +151,7 @@ onMounted(async () => {
             :key="item.path"
             :to="item.path"
             class="flex items-center gap-3 px-6 py-3 text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors"
-            :class="{ 'bg-emerald-50 text-emerald-700 border-r-2 border-emerald-600': isActive(item.path) }"
+            :class="{ 'bg-primary-50 text-primary-700 border-r-2 border-primary-600': isActive(item.path) }"
             @click="closeMobileMenu"
           >
             <!-- Home icon -->
@@ -182,8 +182,8 @@ onMounted(async () => {
         <!-- Mobile User / Logout -->
         <div class="border-t border-gray-200 p-4">
           <div class="flex items-center gap-3">
-            <div class="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center">
-              <span class="text-emerald-700 text-sm font-medium">{{ userInitials }}</span>
+            <div class="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
+              <span class="text-primary-700 text-sm font-medium">{{ userInitials }}</span>
             </div>
             <div class="flex-1 min-w-0">
               <p class="text-sm font-medium text-gray-900 truncate">{{ user?.email || 'GerustThuis' }}</p>
@@ -213,7 +213,7 @@ onMounted(async () => {
           :key="item.path"
           :to="item.path"
           class="flex items-center gap-3 px-6 py-3 text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors"
-          :class="{ 'bg-emerald-50 text-emerald-700 border-r-2 border-emerald-600': isActive(item.path) }"
+          :class="{ 'bg-primary-50 text-primary-700 border-r-2 border-primary-600': isActive(item.path) }"
         >
           <!-- Home icon -->
           <svg v-if="item.icon === 'home'" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -243,8 +243,8 @@ onMounted(async () => {
       <!-- User / Logout -->
       <div class="border-t border-gray-200 p-4">
         <div class="flex items-center gap-3">
-          <div class="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center">
-            <span class="text-emerald-700 text-sm font-medium">{{ userInitials }}</span>
+          <div class="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
+            <span class="text-primary-700 text-sm font-medium">{{ userInitials }}</span>
           </div>
           <div class="flex-1 min-w-0">
             <p class="text-sm font-medium text-gray-900 truncate">{{ user?.email || 'GerustThuis' }}</p>

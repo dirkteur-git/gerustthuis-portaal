@@ -3,6 +3,6 @@
 @tailwind utilities;
 
 body {
-  font-family: Inter, system-ui, -apple-system, sans-serif;
-  @apply bg-gray-50 text-gray-900;
+  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  @apply bg-cream text-ink;
 }

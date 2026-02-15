@@ -220,7 +220,7 @@ function switchMode(newMode) {
                 type="password"
                 required
                 autocomplete="new-password"
-                class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 placeholder="Minimaal 6 tekens"
               >
             </div>
@@ -231,12 +231,12 @@ function switchMode(newMode) {
                 type="password"
                 required
                 autocomplete="new-password"
-                class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 placeholder="Herhaal wachtwoord"
               >
             </div>
 
-            <div v-if="success" class="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-700">
+            <div v-if="success" class="p-3 bg-primary-50 border border-primary-200 rounded-lg text-sm text-primary-700">
               {{ success }}
             </div>
             <div v-if="error" class="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
@@ -246,7 +246,7 @@ function switchMode(newMode) {
             <button
               type="submit"
               :disabled="loading"
-              class="w-full py-2.5 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+              class="w-full py-2.5 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 disabled:opacity-50 transition-colors"
             >
               {{ loading ? 'Bezig...' : 'Wachtwoord instellen' }}
             </button>
@@ -266,12 +266,12 @@ function switchMode(newMode) {
                 type="email"
                 required
                 autocomplete="email"
-                class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 placeholder="je@email.nl"
               >
             </div>
 
-            <div v-if="success" class="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-700">
+            <div v-if="success" class="p-3 bg-primary-50 border border-primary-200 rounded-lg text-sm text-primary-700">
               {{ success }}
             </div>
             <div v-if="error" class="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
@@ -281,13 +281,13 @@ function switchMode(newMode) {
             <button
               type="submit"
               :disabled="loading"
-              class="w-full py-2.5 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+              class="w-full py-2.5 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 disabled:opacity-50 transition-colors"
             >
               {{ loading ? 'Bezig...' : 'Verstuur reset link' }}
             </button>
           </form>
 
-          <button @click="switchMode('login')" class="mt-4 text-sm text-emerald-600 hover:text-emerald-700 font-medium">
+          <button @click="switchMode('login')" class="mt-4 text-sm text-primary-600 hover:text-primary-700 font-medium">
             ← Terug naar inloggen
           </button>
         </template>
@@ -307,7 +307,7 @@ function switchMode(newMode) {
                 type="email"
                 required
                 autocomplete="email"
-                class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 placeholder="je@email.nl"
               >
             </div>
@@ -320,12 +320,12 @@ function switchMode(newMode) {
                 type="password"
                 required
                 :autocomplete="mode === 'register' ? 'new-password' : 'current-password'"
-                class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 placeholder="••••••••"
               >
               <!-- Forgot password link (only in login mode) -->
               <div v-if="mode === 'login'" class="text-right mt-1">
-                <button type="button" @click="switchMode('forgotPassword')" class="text-sm text-emerald-600 hover:text-emerald-700">
+                <button type="button" @click="switchMode('forgotPassword')" class="text-sm text-primary-600 hover:text-primary-700">
                   Wachtwoord vergeten?
                 </button>
               </div>
@@ -339,7 +339,7 @@ function switchMode(newMode) {
                 type="password"
                 required
                 autocomplete="new-password"
-                class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 placeholder="••••••••"
               >
             </div>
@@ -350,7 +350,7 @@ function switchMode(newMode) {
             </div>
 
             <!-- Success -->
-            <div v-if="success" class="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-700">
+            <div v-if="success" class="p-3 bg-primary-50 border border-primary-200 rounded-lg text-sm text-primary-700">
               {{ success }}
             </div>
 
@@ -363,7 +363,7 @@ function switchMode(newMode) {
             <button
               type="submit"
               :disabled="loading"
-              class="w-full py-2.5 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+              class="w-full py-2.5 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 disabled:opacity-50 transition-colors"
             >
               {{ loading ? 'Bezig...' : (mode === 'register' ? 'Account aanmaken' : 'Inloggen') }}
             </button>
@@ -375,13 +375,13 @@ function switchMode(newMode) {
       <p v-if="mode === 'login' || mode === 'register'" class="text-center text-sm text-gray-500 mt-6">
         <span v-if="mode === 'register'">
           Heb je al een account?
-          <button @click="switchMode('login')" class="text-emerald-600 hover:text-emerald-700 font-medium">
+          <button @click="switchMode('login')" class="text-primary-600 hover:text-primary-700 font-medium">
             Inloggen
           </button>
         </span>
         <span v-else>
           Geen account?
-          <button @click="switchMode('register')" class="text-emerald-600 hover:text-emerald-700 font-medium">
+          <button @click="switchMode('register')" class="text-primary-600 hover:text-primary-700 font-medium">
             Account aanmaken
           </button>
         </span>

@@ -205,14 +205,14 @@ onMounted(async () => {
 
     <!-- Loading -->
     <div v-if="loading" class="bg-white rounded-lg border border-gray-200 p-12 text-center">
-      <div class="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+      <div class="animate-spin w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full mx-auto mb-4"></div>
       <p class="text-gray-500">Kamers laden...</p>
     </div>
 
     <!-- No Hue config -->
     <div v-else-if="!hasConfig" class="bg-white rounded-lg border border-gray-200 p-12 text-center">
-      <div class="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-        <svg class="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div class="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
+        <svg class="w-8 h-8 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
         </svg>
       </div>
@@ -220,7 +220,7 @@ onMounted(async () => {
       <p class="text-gray-500 mb-4">Koppel eerst je Philips Hue Bridge om kamers en sensoren te zien.</p>
       <router-link
         to="/instellingen"
-        class="inline-block px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors"
+        class="inline-block px-4 py-2 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 transition-colors"
       >
         Naar Instellingen
       </router-link>
