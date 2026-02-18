@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { supabase } from '../services/supabase'
+import { supabase, activityDb } from '../services/supabase'
 import {
   MINIMUM_DAYS_REQUIRED,
   toLocalDateKey,
@@ -213,7 +213,7 @@ async function loadData() {
   fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 13)
   fourteenDaysAgo.setHours(0, 0, 0, 0)
 
-  const { data, error } = await supabase
+  const { data, error } = await activityDb()
     .from('daily_activity_stats')
     .select('*')
     .gte('date', fourteenDaysAgo.toISOString().split('T')[0])

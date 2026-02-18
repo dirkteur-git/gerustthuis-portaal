@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { supabase } from '../services/supabase'
+import { supabase, activityDb, integrationsDb } from '../services/supabase'
 import {
   MINIMUM_DAYS_REQUIRED,
   toLocalDateKey,
@@ -401,7 +401,7 @@ const anomalyLabel = computed(() => {
 
 async function loadDayStats() {
   try {
-    const { data, error: fetchError } = await supabase
+    const { data, error: fetchError } = await activityDb()
       .from('daily_activity_stats')
       .select('*')
       .eq('date', selectedDate.value)
@@ -426,7 +426,7 @@ async function loadRoomHourlyData() {
     const dayStart = `${selectedDate.value}T00:00:00`
     const dayEnd = `${selectedDate.value}T23:59:59`
 
-    const { data, error: fetchError } = await supabase
+    const { data, error: fetchError } = await activityDb()
       .from('room_activity_hourly')
       .select('room_name, hour, motion_events, door_events, total_events')
       .gte('hour', dayStart)
@@ -450,7 +450,7 @@ async function loadBaselineStats() {
     fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14)
 
     // Haal baseline dagstats op
-    const { data: dailyData, error: dailyError } = await supabase
+    const { data: dailyData, error: dailyError } = await activityDb()
       .from('daily_activity_stats')
       .select('*')
       .gte('date', toLocalDateKey(fourteenDaysAgo))
@@ -467,7 +467,7 @@ async function loadBaselineStats() {
     }
 
     // Haal baseline room hourly data op
-    const { data: roomData } = await supabase
+    const { data: roomData } = await activityDb()
       .from('room_activity_hourly')
       .select('room_name, hour, motion_events, door_events, total_events')
       .gte('hour', `${toLocalDateKey(fourteenDaysAgo)}T00:00:00`)
@@ -535,7 +535,7 @@ async function loadBaselineStats() {
 }
 
 async function loadDataQuality() {
-  const { data: allDays, error: daysError } = await supabase
+  const { data: allDays, error: daysError } = await activityDb()
     .from('daily_activity_stats')
     .select('date, total_events')
     .order('date', { ascending: false })
@@ -546,7 +546,7 @@ async function loadDataQuality() {
     return
   }
 
-  const { data: sensors, error: sensorsError } = await supabase
+  const { data: sensors, error: sensorsError } = await integrationsDb()
     .from('hue_devices')
     .select('id, name, room_name, device_type, last_state_at')
     .in('device_type', ['motion_sensor', 'contact_sensor'])
@@ -565,7 +565,7 @@ async function loadDataQuality() {
   })
 
   const today = toLocalDateKey(new Date())
-  const { data: todayEvents } = await supabase
+  const { data: todayEvents } = await activityDb()
     .from('activity_events')
     .select('id', { count: 'exact', head: true })
     .gte('recorded_at', `${today}T00:00:00`)

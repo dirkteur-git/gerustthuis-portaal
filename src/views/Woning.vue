@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { supabase, getHueConfig } from '../services/supabase'
+import { supabase, getHueConfig, integrationsDb, activityDb } from '../services/supabase'
 
 // Data
 const loading = ref(true)
@@ -61,7 +61,7 @@ const roomsWithData = computed(() => {
 
 // Load unique rooms from hue_devices
 async function loadRooms() {
-  const { data, error } = await supabase
+  const { data, error } = await integrationsDb()
     .from('hue_devices')
     .select('room_name')
 
@@ -76,7 +76,7 @@ async function loadRooms() {
 
 // Load device counts per room from hue_devices
 async function loadDeviceCounts() {
-  const { data, error } = await supabase
+  const { data, error } = await integrationsDb()
     .from('hue_devices')
     .select('room_name, device_type')
 
@@ -104,7 +104,7 @@ async function loadActivityData() {
   const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)
 
   // room_activity_hourly view: room_name, hour (text YYYY-MM-DDTHH:MI:SSZ), total_events
-  const { data, error } = await supabase
+  const { data, error } = await activityDb()
     .from('room_activity_hourly')
     .select('room_name, hour, total_events')
     .gte('hour', yesterday.toISOString().slice(0, 13) + ':00:00Z')

@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { supabase, getHueConfig } from '../services/supabase'
+import { supabase, getHueConfig, activityDb, integrationsDb } from '../services/supabase'
 import {
   MINIMUM_DAYS_REQUIRED,
   calculateDayStart,
@@ -388,7 +388,7 @@ function handleHeatmapLeave() {
 async function loadTodayStats() {
   const today = toLocalDateKey(new Date())
 
-  const { data, error } = await supabase
+  const { data, error } = await activityDb()
     .from('daily_activity_stats')
     .select('*')
     .eq('date', today)
@@ -399,7 +399,7 @@ async function loadTodayStats() {
   }
 
   if (data) {
-    const { data: lastEvent } = await supabase
+    const { data: lastEvent } = await activityDb()
       .from('activity_events')
       .select('recorded_at')
       .gte('recorded_at', `${today}T00:00:00`)
@@ -420,7 +420,7 @@ async function loadTodayStats() {
     }
   } else {
     // Geen data voor vandaag - check activity_events direct
-    const { data: events } = await supabase
+    const { data: events } = await activityDb()
       .from('activity_events')
       .select('recorded_at')
       .gte('recorded_at', `${today}T00:00:00`)
@@ -468,7 +468,7 @@ async function loadAverageStats() {
   const fourteenDaysAgo = new Date(today)
   fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14)
 
-  const { data, error } = await supabase
+  const { data, error } = await activityDb()
     .from('daily_activity_stats')
     .select('*')
     .gte('date', toLocalDateKey(fourteenDaysAgo))
@@ -513,7 +513,7 @@ async function loadHeatmapData() {
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6)
   sevenDaysAgo.setHours(0, 0, 0, 0)
 
-  const { data, error } = await supabase
+  const { data, error } = await activityDb()
     .from('room_activity_hourly')
     .select('room_name, hour, total_events')
     .gte('hour', sevenDaysAgo.toISOString())
@@ -565,7 +565,7 @@ async function loadHeatmapData() {
 }
 
 async function loadRecentActivity() {
-  const { data, error } = await supabase
+  const { data, error } = await activityDb()
     .from('activity_events')
     .select('room_name, device_type, recorded_at')
     .order('recorded_at', { ascending: false })
@@ -582,7 +582,7 @@ async function loadRecentActivity() {
 async function loadOfflineSensors() {
   const ninetyMinutesAgo = new Date(Date.now() - 90 * 60 * 1000).toISOString()
 
-  const { data, error } = await supabase
+  const { data, error } = await integrationsDb()
     .from('hue_devices')
     .select('name, room_name, last_state_at')
     .in('device_type', ['motion_sensor', 'contact_sensor'])

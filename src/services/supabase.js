@@ -6,6 +6,10 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
+// Schema-scoped helpers voor tabellen buiten public
+export const activityDb = () => supabase.schema('activity')
+export const integrationsDb = () => supabase.schema('integrations')
+
 // ============================================================
 // User state (reactive, shared across components)
 // ============================================================
@@ -284,7 +288,7 @@ export async function getHueConfig() {
   // If we have an active household with a config_id, fetch that specific config
   const householdConfigId = userState.currentHousehold?.config_id
   if (householdConfigId) {
-    const { data, error } = await supabase
+    const { data, error } = await integrationsDb()
       .from('hue_config')
       .select('*')
       .eq('id', householdConfigId)
@@ -297,7 +301,7 @@ export async function getHueConfig() {
   }
 
   // Fallback: get the first accessible config (for users without household setup)
-  const { data, error } = await supabase
+  const { data, error } = await integrationsDb()
     .from('hue_config')
     .select('*')
     .limit(1)
@@ -310,7 +314,7 @@ export async function getHueConfig() {
 }
 
 export async function saveHueConfig(config) {
-  const { data, error } = await supabase
+  const { data, error } = await integrationsDb()
     .from('hue_config')
     .upsert(config, { onConflict: 'user_email' })
     .select()
@@ -325,7 +329,7 @@ export async function saveHueConfig(config) {
 
 // Devices functions
 export async function getDevices(type = null) {
-  let query = supabase
+  let query = integrationsDb()
     .from('hue_devices')
     .select('*')
     .order('name')
@@ -347,7 +351,7 @@ export async function getLights() {
 }
 
 export async function getSensors() {
-  const { data, error } = await supabase
+  const { data, error } = await integrationsDb()
     .from('hue_devices')
     .select('*')
     .neq('device_type', 'light')
@@ -361,7 +365,7 @@ export async function getSensors() {
 
 // Physical devices (grouped sensors like Hue motion sensor)
 export async function getPhysicalDevices() {
-  const { data, error } = await supabase
+  const { data, error } = await integrationsDb()
     .from('physical_devices')
     .select(`
       *,
@@ -385,7 +389,7 @@ export async function getPhysicalDevices() {
 // Get all sensors: physical devices (grouped) + standalone sensors
 export async function getAllSensors() {
   // Get physical devices with their motion sensor data
-  const { data: physicalDevices, error: physError } = await supabase
+  const { data: physicalDevices, error: physError } = await integrationsDb()
     .from('physical_devices')
     .select(`
       *,
@@ -403,7 +407,7 @@ export async function getAllSensors() {
   }
 
   // Get standalone sensors (not linked to a physical device, excluding temperature/light sensors)
-  const { data: standalone, error } = await supabase
+  const { data: standalone, error } = await integrationsDb()
     .from('hue_devices')
     .select('*')
     .neq('device_type', 'light')
@@ -437,7 +441,7 @@ export async function getAllSensors() {
 }
 
 export async function getRooms() {
-  const { data, error } = await supabase
+  const { data, error } = await integrationsDb()
     .from('hue_devices')
     .select('room_name')
     .not('room_name', 'is', null)
@@ -453,7 +457,7 @@ export async function getRooms() {
 
 export async function getDevicesByRoom(roomName) {
   // Get physical devices for this room with their motion sensor data
-  const { data: physicalDevices, error: physError } = await supabase
+  const { data: physicalDevices, error: physError } = await integrationsDb()
     .from('physical_devices')
     .select(`
       *,
@@ -471,7 +475,7 @@ export async function getDevicesByRoom(roomName) {
   }
 
   // Get standalone devices (lights, contact_sensors, buttons - not linked to physical device)
-  const { data: standalone, error } = await supabase
+  const { data: standalone, error } = await integrationsDb()
     .from('hue_devices')
     .select('*')
     .eq('room_name', roomName)
