@@ -15,9 +15,15 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
-    path: '/analyse',
-    name: 'Analyse',
-    component: () => import('./views/Analyse.vue'),
+    path: '/familie',
+    name: 'Familie',
+    component: () => import('./views/Familie.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/meldingen',
+    name: 'Meldingen',
+    component: () => import('./views/Meldingen.vue'),
     meta: { requiresAuth: true }
   },
   {
